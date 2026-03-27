@@ -32,6 +32,7 @@ pip install -r requirements.txt
 
 # 3. 运行 Streamlit 应用
 streamlit run app.py
+```
 
 ### 2. 云端一键访问 (TODO)
 👉 点击体验在线系统:https://youtube-public-opinion-analysis-system-cdqeuprjfnzn5vphc5cyrt.streamlit.app/
