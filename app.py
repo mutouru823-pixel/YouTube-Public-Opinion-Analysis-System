@@ -282,7 +282,7 @@ def analyze_sentiment_local(text: str) -> Tuple[str, float, str]:
 
 def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> List[Tuple[str, float, str]]:
     """
-    【AI双引擎高级功能】批量使用 Gemini 1.5 Flash 对评论进行情感打标，有效减少 HTTP 请求，保证效率与额度。
+    【AI双引擎高级功能】批量使用 Gemini 对评论进行情感打标，支持多模型自动弹性回退。
     """
     results = []
     batch_size = 20  # 每次并行分析 20 条，减少 API 握手次数
@@ -290,10 +290,13 @@ def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> Li
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
     except Exception as e:
-        st.error(f"Gemini 客户端初始化失败，自动退化为本地 NLP 模型: {e}")
+        st.error(f"Gemini 客户端配置失败，自动退化为本地 NLP 模型: {e}")
         return [analyze_sentiment_local(c) for c in comments]
+
+    # 声明候选模型列表
+    candidate_models = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-pro"]
+    active_model_name = None
 
     for i in range(0, len(comments), batch_size):
         batch = comments[i : i + batch_size]
@@ -318,8 +321,33 @@ def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> Li
   ...
 ]
 """
+        response = None
+        last_err = ""
+        # 优先使用已经验证成功的可用模型，否则逐个尝试
+        models_to_try = [active_model_name] if active_model_name else candidate_models
+
+        for model_name in models_to_try:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                active_model_name = model_name  # 锁定可用模型
+                break
+            except Exception as e:
+                last_err = str(e)
+                # 只有遇到模型名称不匹配或API版本/型号不支持报错时才继续尝试候选模型
+                if not active_model_name and ("404" in last_err or "not found" in last_err.lower() or "not supported" in last_err.lower() or "not_found" in last_err.lower()):
+                    continue
+                else:
+                    break
+
+        if response is None:
+            # 批次失败降级
+            for text in batch:
+                label, score, model_used = analyze_sentiment_local(text)
+                results.append((label, score, f"{model_used}(LLM失败降级)"))
+            continue
+
         try:
-            response = model.generate_content(prompt)
             res_text = response.text.strip()
             
             # 清理可能被大语言模型包裹的代码块标签
@@ -335,13 +363,13 @@ def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> Li
             for idx, item in enumerate(items_sorted):
                 label = item.get("sentiment", "neutral")
                 score = float(item.get("score", 0.5))
-                results.append((label, score, "Gemini LLM"))
+                results.append((label, score, f"Gemini ({active_model_name})"))
                 
         except Exception as e:
-            # 容错降级：本批次分析失败时自动滑向 VADER/SnowNLP
+            # 解析失败降级
             for text in batch:
                 label, score, model_used = analyze_sentiment_local(text)
-                results.append((label, score, f"{model_used}(降级)"))
+                results.append((label, score, f"{model_used}(解析失败降级)"))
                 
     return results
 
@@ -378,7 +406,7 @@ def generate_scct_insights(negative_comments: List[str], api_key: str) -> str:
 根据 SCCT 理论，判断该事件属于以下哪类危机集群（进行详细论证并给出归类理由）：
 - **受害者集群 (Victim Cluster)**：企业被视为受害者（如自然灾害、谣言、外部蓄意破坏）。归因责任：极低。
 - **事故集群 (Accidental Cluster)**：企业非蓄意但因技术、操作故障引发（如意外设备故障、非恶意产品缺陷）。归因责任：中等。
-- **可防范集群 (Preventable Cluster)**：企业故意违法或管理严重失职、隐瞒事实导致（如故意安全违规、知情不报、欺诈行为）。归因责任：极高。
+- **可防范集群 (Preventable Cluster)**：企业故意违法或管理严重失职、隐瞒事实导致（如故意安全违规、知情不报、欺诈行为）。归因责任：极极高。
 
 ### 📈 3. 推荐公关响应策略 (Recommended PR Strategy Scorecard)
 根据危机归类，推荐企业采取何种响应策略（提供百分比推荐，并说明具体公关话术切入点）：
@@ -396,8 +424,28 @@ def generate_scct_insights(negative_comments: List[str], api_key: str) -> str:
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
+        
+        # 弹性候选模型列表
+        candidate_models = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-pro"]
+        response = None
+        last_err = ""
+        
+        for model_name in candidate_models:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                break  # 成功生成即跳出循环
+            except Exception as e:
+                last_err = str(e)
+                # 只有遇到模型名称不匹配或API版本/型号不支持报错时才继续尝试候选模型
+                if "404" in last_err or "not found" in last_err.lower() or "not supported" in last_err.lower() or "not_found" in last_err.lower():
+                    continue
+                else:
+                    raise e # 其它关键错误（如 API Key 校验失败）直接抛出
+                    
+        if response is None:
+            return f"❌ AI 危机公关报告生成失败。已尝试所有候选模型 {candidate_models}，均不可用。最后一次模型报错信息: {last_err}"
+            
         return response.text
     except Exception as e:
         return f"❌ AI 危机公关报告生成失败，错误信息: {str(e)}"
