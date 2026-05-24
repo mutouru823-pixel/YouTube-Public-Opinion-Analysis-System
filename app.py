@@ -389,37 +389,40 @@ def generate_scct_insights(negative_comments: List[str], api_key: str) -> str:
     comments_text = "\n".join([f"- {c}" for c in sample_comments])
 
     prompt = f"""
-你是一名资深跨国企业危机公关专家和品牌声誉管理顾问。请根据 Coombs 的 **情境危机传播理论 (Situational Crisis Communication Theory, SCCT)**，对以下 YouTube 视频中的用户负面抗议意见进行深度分析。
+你是一名资深传播学学者和计算社会学（Computational Social Science）科研专家。请根据 Coombs 的 **情境危机传播理论 (Situational Crisis Communication Theory, SCCT)**，对以下 YouTube 视频语料中的负面抗议意见进行严格的学术定量内容分析与个案编码。
 
 负面评论样本：
 \"\"\"
 {comments_text}
 \"\"\"
 
-请生成一份专业、高度结构化、可直接呈报给企业高层决策的【AI 危机舆情与 SCCT 公关战略报告】。报告应包含以下核心板块，并以精美专业的 Markdown 格式输出：
+请生成一份专业、符合国际核心学术期刊发表标准、高度结构化的【SCCT 学术定量内容分析与危机个案编码报告】。报告应包含以下核心板块，并以精美专业的 Markdown 格式输出：
 
-### 🎯 1. 危机定性与核心诉求分析 (Crisis Diagnosis)
-- **公众舆论核心痛点**：总结用户最强烈的不满、质疑和诉求（列出 Top 3 痛点并详细剖析）。
-- **舆情风险等级评定**：定性评估公众情绪（如：失望、愤怒、抵制、讽刺等），并评估危机对品牌声誉的短期与长期危害。
+### 🔬 1. 舆论文本议题编码与情绪特征 (Topic Coding & Emotional Profiles)
+- **公众舆论核心痛点与编码（Top 3 Issues）**：提取网民最强烈的不满、质疑和诉求，进行语义主题编码，并剖析其深层社会心理动因。
+- **情感危机烈度与声誉危害评估 (Reputational Threat Assessment)**：评估负向情感倾斜严重度，量化网民情绪对抗烈度，分析其对品牌象征性社会资本与媒介声誉的短期与长期危害。
 
-### 🧠 2. SCCT 危机情境归类 (SCCT Crisis Clustering)
-根据 SCCT 理论，判断该事件属于以下哪类危机集群（进行详细论证并给出归类理由）：
-- **受害者集群 (Victim Cluster)**：企业被视为受害者（如自然灾害、谣言、外部蓄意破坏）。归因责任：极低。
-- **事故集群 (Accidental Cluster)**：企业非蓄意但因技术、操作故障引发（如意外设备故障、非恶意产品缺陷）。归因责任：中等。
-- **可防范集群 (Preventable Cluster)**：企业故意违法或管理严重失职、隐瞒事实导致（如故意安全违规、知情不报、欺诈行为）。归因责任：极极高。
+### 📚 2. SCCT 危机情境学术编码 (SCCT Academic Case-Study Coding)
+基于 Coombs 的 SCCT 理论，判断该事件属于以下哪类危机集群（进行严密的学术理论论证，给出具体编码理由及责任归因强度的研判）：
+- **受害者集群 (Victim Cluster)**：组织被视为外部被侵害方（如自然灾害、谣言抹黑、外部恶意入侵）。归因责任：极低 (Minimal Attribution)。
+- **事故集群 (Accidental Cluster)**：组织非蓄意但因技术、操作故障诱发（如意外设备故障、非恶意产品缺陷）。归因责任：中等 (Moderate Attribution)。
+- **可防范集群 (Preventable Cluster)**：组织故意违法违规或管理严重失职、知情隐瞒不报导致。归因责任：极高 (Severe Attribution)。
 
-### 📈 3. 推荐公关响应策略 (Recommended PR Strategy Scorecard)
-根据危机归类，推荐企业采取何种响应策略（提供百分比推荐，并说明具体公关话术切入点）：
-- **否认策略 (Denial)**：划清界限、驳斥谣言或强调企业无辜。（适用受害者集群）
-- **淡化策略 (Diminish)**：强调外部客观因素，重申损害可控，降低公众对危机严重性的感知。（适用事故集群）
-- **重塑策略 (Rebuild)**：诚恳道歉，承担全部责任，并提供实质性补偿（Compensation）与纠正措施（Corrective Action）。（适用可防范/严重事故集群）
-- **迎合/强化策略 (Bolstering)**：提醒公众企业过去的良好记录，对支持者表示感谢，重建信任。
+### 📈 3. 基于 SCCT 模型的理论化应对策略矩阵 (Theoretical Strategy Matrix)
+根据前面的危机编码，推荐采取何种危机沟通响应策略（提供符合 Coombs 理论框架的策略配比建议，并给出学术性话术要点指导）：
+- **否认策略 (Denial)**：划清界限、驳斥谣言或强调组织无辜。（适用受害者集群，低归因责任）
+- **淡化策略 (Diminish)**：强调外部客观因素，重申损害可控，降低公众对危机严重性的感知。（适用事故集群，中等归因责任）
+- **重塑策略 (Rebuild)**：诚恳道歉，承担全部责任，并提供实质性补偿（Compensation）与纠正措施（Corrective Action）。（适用可防范/严重事故集群，高归因责任）
+- **迎合/强化策略 (Bolstering)**：提醒公众组织过去的良好记录，对支持者表示感谢，重建信任纽带。
 
-### 📝 4. 危机响应双语官方声明草案 (Bilingual Press Release Draft)
-提供一份符合企业级危机公关规范的**官方声明/道歉信草案**：
-- **中文版本 (Chinese Version)**
-- **英文版本 (English Version)**
-- **声明写作要点解析**：解释为什么这样设计措辞（如：首要关注受害者、展现主动担当、具体的后续整改承诺）。
+### 📝 4. 危机响应个案研究双语示范文本设计 (Bilingual Narrative Research Design)
+提供一版用于本案例实证研究参考的**官方声明/道歉信学术模型样本**：
+- **中文版本 (Chinese Empirical Template)**
+- **英文版本 (English Empirical Template)**
+- **文本修辞学与叙事要点解析**：从叙事学和修辞学角度，阐明该文本设计如何有效对应危机责任规避或公众情感修复（例如：优先关注受害人利益、展现主动纠错担当、承诺具体的后续整改路线）。
+
+### 📖 5. 学术参考文献 (APA 7th Edition References)
+列出报告中引用的主要 SCCT 理论与计算传播学核心学术文献列表，必须采用严格的 **APA 第 7 版标准学术参考文献格式**。至少包含 Timothy Coombs 的经典论文与专著。
 """
     try:
         import google.generativeai as genai
@@ -1141,26 +1144,101 @@ def render_extreme_quotes(df: pd.DataFrame):
                 )
 
 
-def render_metrics(df: pd.DataFrame):
-    """渲染顶部指标卡。"""
+
+def calculate_shannon_entropy(df: pd.DataFrame) -> float:
+    """
+    【学术级统计指标】计算词频的 Shannon 信息熵 (Shannon Entropy)。
+    信息熵（H）用于量化文本讨论议题的语义复杂度与发散程度：
+    - H 较高：公众讨论词汇丰富，讨论议题发散度高，体现去中心化的自发讨论。
+    - H 较低：公众表达极度集中于少数特定词汇（通常伴随协同水军刷屏、情绪极化宣泄或单一核心诉求极度凸显）。
+    """
+    import collections
+    import math
+    
+    text_list = df["comment_text"].dropna().astype(str).tolist()
+    text_blob = " ".join(text_list).strip()
+    if not text_blob:
+        return 0.0
+        
+    words = []
+    if contains_chinese(text_blob):
+        try:
+            import jieba
+            words = [w for w in jieba.cut(text_blob) if len(w.strip()) > 1]
+        except Exception:
+            words = [w for w in text_blob.split() if len(w.strip()) > 1]
+    else:
+        # 英文过滤标点后拆分词汇
+        cleaned_text = re.sub(r'[^\w\s]', '', text_blob.lower())
+        words = [w for w in cleaned_text.split() if len(w.strip()) > 2]
+        
+    if not words:
+        return 0.0
+        
+    # 计算词频概率分布
+    counts = collections.Counter(words)
+    total = len(words)
+    
+    entropy = 0.0
+    for count in counts.values():
+        p = count / total
+        entropy -= p * math.log2(p)
+        
+    return entropy
+
+
+def calculate_polarization_index(df: pd.DataFrame) -> Tuple[float, str]:
+    """
+    【传播学极化指标】基于经典 Esteban-Ray 派生模型的舆论极化指数 (Polarization Index)。
+    极化分值范围为 [0, 1]：
+    - Polarization = 4 * P_pos * P_neg
+    用于评估网络社群中正负情感态度的冲突对立烈度。极化值越接近1，表明社群彻底分裂为势均力敌的两大情绪对立阵营（如50/50对撕）。
+    """
     total = len(df)
     if total == 0:
-        pos_ratio = 0.0
-        neg_ratio = 0.0
-        neu_ratio = 0.0
+        return 0.0, "无数据"
+        
+    p_pos = (df["sentiment"] == "positive").mean()
+    p_neg = (df["sentiment"] == "negative").mean()
+    
+    polarization = 4 * p_pos * p_neg
+    
+    if polarization < 0.2:
+        desc = "高度共识 (Consensus) - 社区情感呈现显著的一边倒态势"
+    elif polarization < 0.5:
+        desc = "轻度对立 (Mild Division) - 社区内伴有小范围的异质偏离意见"
+    elif polarization < 0.8:
+        desc = "中度分裂 (Moderately Polarized) - 社区舆论场已呈现明显对立的两派阵营"
     else:
-        pos_ratio = (df["sentiment"] == "positive").mean() * 100
-        neg_ratio = (df["sentiment"] == "negative").mean() * 100
-        neu_ratio = (df["sentiment"] == "neutral").mean() * 100
+        desc = "高度极化 (Highly Polarized) - 网民情感极度极化分裂（红绿阵营势均力敌对抗）"
+        
+    return polarization, desc
+
+
+def render_metrics(df: pd.DataFrame):
+    """【学术级重构】渲染计算传播学与语料特征核心统计量"""
+    total = len(df)
+    
+    # 计算非中立主观发言占比（Subjectivity Rate）
+    if total == 0:
+        sub_rate = 0.0
+    else:
+        sub_rate = (df["sentiment"] != "neutral").mean() * 100
+        
+    # 计算极化指数
+    polarization, pol_desc = calculate_polarization_index(df)
+    
+    # 计算词汇 Shannon 信息熵
+    entropy = calculate_shannon_entropy(df)
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-title">📊 总抓取舆情数</div>
-                <div class="metric-value">{total:,}</div>
-                <div class="metric-subtitle">来自顶层评论翻页抓取</div>
+                <div class="metric-title">📥 语料样本总量 (N)</div>
+                <div class="metric-value">{{total:,}}</div>
+                <div class="metric-subtitle">样本抓取层深度：Top-level comments</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1169,9 +1247,9 @@ def render_metrics(df: pd.DataFrame):
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-title">🟢 正向情绪占比</div>
-                <div class="metric-value" style="background: linear-gradient(135deg, #34d399 0%, #059669 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{pos_ratio:.1f}%</div>
-                <div class="metric-subtitle">正面反馈与支持声音</div>
+                <div class="metric-title">🔬 态度主观性指数</div>
+                <div class="metric-value" style="background: linear-gradient(135deg, #34d399 0%, #059669 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{{sub_rate:.1f}}%</div>
+                <div class="metric-subtitle">非中立主观语义倾向的发言占比</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1180,9 +1258,9 @@ def render_metrics(df: pd.DataFrame):
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-title">🟡 中立情绪占比</div>
-                <div class="metric-value" style="background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{neu_ratio:.1f}%</div>
-                <div class="metric-subtitle">客观描述与常规内容</div>
+                <div class="metric-title">⚖️ 极化指数 (Esteban-Ray)</div>
+                <div class="metric-value" style="background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{{polarization:.3f}}</div>
+                <div class="metric-subtitle" style="font-size:10px; color:#fbbf24; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{pol_desc}}">{{pol_desc.split(' ')[0]}}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1191,9 +1269,9 @@ def render_metrics(df: pd.DataFrame):
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-title">🔴 负向情绪占比</div>
-                <div class="metric-value" style="background: linear-gradient(135deg, #f87171 0%, #dc2626 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{neg_ratio:.1f}%</div>
-                <div class="metric-subtitle">危机预警与主要客诉</div>
+                <div class="metric-title">🌀 语义信息熵 (Shannon H)</div>
+                <div class="metric-value" style="background: linear-gradient(135deg, #f87171 0%, #dc2626 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{{entropy:.3f}}</div>
+                <div class="metric-subtitle">数值越高代表论题语义越发散丰富</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1201,44 +1279,44 @@ def render_metrics(df: pd.DataFrame):
 
 
 def main():
-    # Modern Gradient Banner
+    # Modern Academic Gradient Banner
     st.markdown(
         """
         <div class="header-panel">
-            <h1>📊 YouTube 舆情智能化分析与 SCCT 决策系统</h1>
-            <p>融合大规模自动分页抓取、双引擎情感打标与 SCCT 公关危机理论的微型商业 SaaS 智能面板</p>
+            <h1>🔬 计算传播学多语种舆情量化分析平台</h1>
+            <p>整合大规模自动采样语料、双算法分类引擎与经典情境危机传播理论（SCCT）的计算社会科学科研控制平台</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Sidebar parameters
+    # Sidebar parameters with Academic framing
     with st.sidebar:
-        st.header("⚙️ 系统控制中心")
+        st.header("🔬 学术科研控制台")
         
         # API Keys configuration
         youtube_api_key = st.text_input("YouTube Data API Key", type="password", help="需开通 YouTube Data API v3 权限。")
         
         keyword_text = st.text_input(
-            "舆情核心关键词",
+            "研究核心关键词 (群)",
             placeholder="例如：新能源汽车, 智能驾驶 AI（逗号/空格分隔）",
-            help="输入多个词时，系统将并行搜索汇总并自动去重。",
+            help="输入多个检索项时，系统将合并采样并自动去重处理。",
         )
         
         max_items = st.number_input(
-            "数据采样上限 (页深度)",
+            "语料采样上限 (页深度)",
             min_value=10,
             max_value=100000,
             value=500,
             step=100,
-            help="支持至 100,000 条。大规模时使用 next_token 并页抓取。",
+            help="支持至 100,000 条。大规模时使用 next_token 翻页抓取。",
         )
         
         st.divider()
         
         # Engine selections
         sentiment_engine = st.selectbox(
-            "🏷️ 情感判定算法引擎",
+            "🏷️ 文本情感编码引擎",
             ["本地 NLP 轻量引擎 (VADER & SnowNLP)", "云端大语言模型引擎 (Gemini LLM)"],
             help="若选择 Gemini 引擎，需在下方提供 Gemini API Key；其支持超强语境和反讽语义判定。"
         )
@@ -1247,11 +1325,11 @@ def main():
             "Gemini API Key",
             type="password",
             value=os.getenv("GEMINI_API_KEY", ""),
-            placeholder="AI 危机公关与 LLM 分析所需",
+            placeholder="AI 学术编码与 LLM 分析所需",
             help="可选。用于解锁高级 AI 危机公关 SCCT 诊断功能和大模型情绪打标。"
         )
         
-        enable_scct = st.checkbox("🌟 启用 AI 危机公关 (SCCT)", value=True, help="启用后，将使用 Gemini 自动根据危机公关理论为负面言论生成建议报告。")
+        enable_scct = st.checkbox("📚 开启 SCCT 学术编码模型", value=True, help="启用后，将使用 Gemini 自动根据情境危机传播理论对负向文本进行内容分析与学术编码。")
         
         run_btn = st.button("🚀 启动数据工作流", type="primary", use_container_width=True)
 
@@ -1323,17 +1401,17 @@ def main():
         gemini_api_key = st.session_state["gemini_key"]
         enable_scct = st.session_state["scct_enabled"]
 
-        # Render Premium Metric Cards
+        # Render Academic Metric Cards
         render_metrics(df)
         st.divider()
 
-        # Five Tabs Layout (Phase 2 Upgrade)
+        # Five Tabs Layout (Academic Redesign)
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "📊 实时舆情分析看板 (Dashboard)", 
-            "📈 高级数据探针 (Advanced Analytics)",
-            "🧠 AI 危机公关与 SCCT 决策 (SCCT Advisory)", 
-            "🔍 情绪词云与深度透视 (Semantic Analytics)", 
-            "💾 数据探索与归档 (Data Explorer)"
+            "📊 舆情定量分析大屏 (Quantitative Metrics)", 
+            "🧪 实证科研高级探针 (Empirical Analytics)",
+            "📚 SCCT 学术编码研究 (Theoretical Coding)", 
+            "🔍 词云与情感语义分布 (Semantic Mining)", 
+            "💾 研究数据审计与导出 (Corpus Auditor)"
         ])
 
         with tab1:
@@ -1356,37 +1434,42 @@ def main():
             plot_engagement_correlation(df)
 
         with tab3:
-            st.markdown('<div class="section-title">🧠 AI 危机公关中心 (基于 Coombs 情境危机传播理论)</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-title">📚 SCCT 危机情境定量内容分析中枢 (基于经典情境危机传播理论)</div>', unsafe_allow_html=True)
             
             # 过滤出所有消极评论
             neg_comments = df[df["sentiment"] == "negative"].sort_values(by="like_count", ascending=False)["comment_text"].tolist()
             
             if not enable_scct:
-                st.info("💡 危机公关功能未启用。请在左侧侧边栏勾选“启用 AI 危机公关 (SCCT)”并配置 API Key 激活。")
+                st.info("💡 学术研究模型未启用。请在侧边栏勾选“开启 SCCT 学术编码模型”并配置 API Key 激活。")
             elif not gemini_api_key:
-                st.warning("🔑 提示：需要配置 Gemini API Key 以加载高级 SCCT 危机决策模块。")
+                st.warning("🔑 提示：需要配置 Gemini API Key 以加载高级 SCCT 危机实证编码分析模块。")
                 
-                # 教育性科普栏目，在无 Key 时展示，彰显学术理论性
+                # 学术性科普栏目，在无 Key 时展示，彰显学术理论性
                 st.markdown(
                     """
-                    > **什么是 SCCT 危机公关理论？**
-                    > 由危机公关学术权威 Coombs 提出。理论认为：企业在遭遇负面危机时，应先评估其负有责任的程度（受害者集群、事故集群、可防范集群），并对应选择“否认、淡化、重塑、强化”公关策略。
+                    > **经典 SCCT 情境危机传播理论（Timothy Coombs 教授）**
+                    > SCCT 是传播学领域在危机沟通和品牌声誉管理方面的**核心权威理论框架**。该理论主张：企业组织遭遇声誉危机时，所面临的公共关系威胁直接取决于**公众对危机事件归因责任的严重度**。
                     > 
-                    > **如何解锁该高级功能？**
-                    > 在左侧参数面板中配置 `Gemini API Key` 并点击启动工作流。系统将自动抓取负面批评意见的语义模式，映射理论坐标轴，自动生成企业中英文双语道歉信/新闻稿。
+                    > 理论将情境划分为三大危机集群：
+                    > 1. **受害者集群 (Victim Cluster)**：组织被视为外部被侵害方。归因责任：极低。*（推荐策略：否认/澄清 Denial）*
+                    > 2. **事故集群 (Accidental Cluster)**：组织非恶意，因偶然操作/技术故障诱发。归因责任：中等。*（推荐策略：淡化客观因素 Diminish）*
+                    > 3. **可防范集群 (Preventable Cluster)**：组织故意违法违规或严重管理失职。归因责任：极高。*（推荐策略：重塑道歉/纠正整改 Rebuild）*
+                    > 
+                    > **如何解锁该学术实证模块？**
+                    > 在左侧参数面板中配置 `Gemini API Key` 并点击启动工作流。计算智能将自动过滤负向抱怨文本的语义群，匹配 SCCT 理论坐标轴归因，生成符合论文发表水准的**实证编码报告与 APA 7th 标准学术参考文献列表**。
                     """
                 )
             else:
-                with st.spinner("🕵️‍♂️ 危机公关专家正研判舆情态势，编纂 SCCT 决策应对方案..."):
+                with st.spinner("🕵️‍♂️ 传播学专家系统研判个案文本，生成 SCCT 学术实证编码报告中..."):
                     report = generate_scct_insights(neg_comments, gemini_api_key)
                 
                 st.markdown(report)
                 
                 # 报告导出能力
                 st.download_button(
-                    label="📥 导出 SCCT 危机公关决策报告 (Markdown)",
+                    label="📥 导出 SCCT 学术内容分析编码报告 (Markdown)",
                     data=report.encode("utf-8"),
-                    file_name=f"SCCT_Crisis_Advisory_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
+                    file_name=f"SCCT_Academic_Coding_Report_{{datetime.now().strftime('%Y%m%d_%H%M%S')}}.md",
                     mime="text/markdown",
                     use_container_width=True
                 )
@@ -1403,10 +1486,10 @@ def main():
                 else:
                     st.image(img, use_container_width=True)
             except Exception as err:
-                st.warning(f"词云生成失败: {err}")
+                st.warning(f"词云生成失败: {{err}}")
 
         with tab5:
-            st.markdown('<div class="section-title">💾 原始数据审计表</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-title">💾 原始语料数据审计表</div>', unsafe_allow_html=True)
             
             # 添加关键词筛选
             search_query = st.text_input("🔍 输入关键词过滤审计数据...", "")
@@ -1418,25 +1501,25 @@ def main():
 
             csv_bytes = filtered_df.to_csv(index=False).encode("utf-8-sig")
             st.download_button(
-                label="📥 导出过滤后的舆情数据为 CSV",
+                label="📥 导出过滤后的学术语料 corpus 为 CSV",
                 data=csv_bytes,
-                file_name=f"youtube_opinion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                file_name=f"youtube_corpus_{{datetime.now().strftime('%Y%m%d_%H%M%S')}}.csv",
                 mime="text/csv",
             )
     else:
-        # Initial Landing view showing system details
-        st.info("💡 请在左侧控制中心输入参数配置，点击“启动数据工作流”开始自动抓取与分析。")
+        # Initial Landing view showing system details with Academic framing
+        st.info("💡 请在侧边栏配置学术科研控制台，点击“启动数据工作流”开始自动进行语料采样与分析。")
         
         # Introduce features
-        st.markdown('<div class="section-title">⚙️ 系统架构与核心亮点</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">🔬 系统科学架构与计算传播学核心亮点</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown(
                 """
                 <div class="metric-card" style="min-height: 200px;">
-                    <div class="metric-title" style="color: #a78bfa;">📦 弹性高并发数据流</div>
+                    <div class="metric-title" style="color: #a78bfa;">📥 自动采样多语种语料库</div>
                     <div style="font-size: 14px; color: #cbd5e1; margin-top: 10px; line-height: 1.6;">
-                        利用 YouTube Data API v3 分页翻页机制，实现突破单页限制的十万级评论循环抓取；支持遇到关闭评论视频时智能路由跳过，极高容错。
+                        基于 YouTube Data API v3 大大规模自动分页翻页算法，实现多检索项去重的顶层评论循环抓取，遇到评论关闭视频智能绕行，构建科学可信的公开媒介文本语料库。
                     </div>
                 </div>
                 """,
@@ -1446,9 +1529,9 @@ def main():
             st.markdown(
                 """
                 <div class="metric-card" style="min-height: 200px;">
-                    <div class="metric-title" style="color: #34d399;">🧠 智能双算法引擎</div>
+                    <div class="metric-title" style="color: #34d399;">🧠 混合计算语言学分类算法</div>
                     <div style="font-size: 14px; color: #cbd5e1; margin-top: 10px; line-height: 1.6;">
-                        基于 Singleton Caching 优化的高性能本地 VADER & SnowNLP 双语情感计算；可无缝切换至 Gemini 批量大语言模型分析引擎，获取极高语义精度。
+                        整合高性能全局单例 VADER (英) & SnowNLP (中) 情感分类引擎；可选配大语言模型批量归一化多维打标，提供极高语义环境拟合度。
                     </div>
                 </div>
                 """,
@@ -1458,9 +1541,9 @@ def main():
             st.markdown(
                 """
                 <div class="metric-card" style="min-height: 200px;">
-                    <div class="metric-title" style="color: #f87171;">💼 SCCT 公关智囊中心</div>
+                    <div class="metric-title" style="color: #f87171;">📚 SCCT 经典传播模型实证</div>
                     <div style="font-size: 14px; color: #cbd5e1; margin-top: 10px; line-height: 1.6;">
-                        将前沿 AI 技术与权威 Coombs 情境危机传播理论（SCCT）融合，自动评估品牌声誉受损度，规划应对矩阵并撰写官方双语声明。
+                        融合经典危机公关 SCCT 归因模型。过滤负向抗议文本进行学术内容编码，动态研判责任归属集群，导出 APA 格式论文文献引用与个案实证报告。
                     </div>
                 </div>
                 """,
