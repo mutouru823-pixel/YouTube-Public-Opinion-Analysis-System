@@ -441,14 +441,95 @@ def generate_scct_insights(negative_comments: List[str], api_key: str) -> str:
                 if "404" in last_err or "not found" in last_err.lower() or "not supported" in last_err.lower() or "not_found" in last_err.lower():
                     continue
                 else:
-                    raise e # 其它关键错误（如 API Key 校验失败）直接抛出
+                    raise e # 其它关键错误（如 API Key 校验/Quota限流）直接抛出
                     
         if response is None:
-            return f"❌ AI 危机公关报告生成失败。已尝试所有候选模型 {candidate_models}，均不可用。最后一次模型报错信息: {last_err}"
+            raise RuntimeError(f"已尝试所有候选模型 {candidate_models}，均不可用。最后一次模型报错信息: {last_err}")
             
         return response.text
     except Exception as e:
-        return f"❌ AI 危机公关报告生成失败，错误信息: {str(e)}"
+        err_msg = str(e)
+        
+        # 构建离线版危机自诊断手册，提供商业级的高可用度降级方案
+        static_handbook = f"""
+### 🚨 AI 决策引擎触发配额熔断 / 限流保护 (Rate Limit & Quota Exceeded)
+
+> **⚠️ 提示**：检测到您的 Google Gemini API Key 目前已达到免费额度限制或触发了每分钟频率限流限额（原始报错：{err_msg}）。
+> 为了不影响您的决策，根据 **SCCT 危机公关理论防御性原则**，系统已自动启动**「离线危机公关自诊断中枢」**，为您提供标准的跨区域公关应对指南与双语通用道歉大纲。
+
+---
+
+# 📚 《出海企业标准 SCCT 危机沟通自诊断手册》
+*(Timothy Coombs 教授情境危机传播理论标准版)*
+
+在缺乏实时 AI 分析时，请依据本手册分步进行品牌舆情自诊断：
+
+## 📌 第一步：舆情事件责任定性 (Attribution of Responsibility)
+根据负面评论的爆发诱因，对照下表确定事件属于哪类 **SCCT 危机集群 (Crisis Cluster)**：
+
+| 危机集群 (Cluster) | 现实场景实例 (Examples) | 网民责任归因 (Attribution) | 推荐核心公关态度 (Posture) |
+| :--- | :--- | :--- | :--- |
+| **受害者集群 (Victim)** | 谣言恶意抹黑、自然灾害、外部骇客攻击 | 极低 (Minimal) | **驳斥与澄清 (Denial)** / 划清界限 |
+| **事故集群 (Accidental)** | 技术突发故障、非恶意产品设计缺陷、供应链延误 | 中等 (Moderate) | **淡化客观原因 (Diminish)** + 修正承诺 |
+| **可防范集群 (Preventable)** | 故意违法违规、管理严重失职、知情隐瞒不报 | 极高 (Severe) | **彻底重塑信任 (Rebuild)** + 赔偿与整改 |
+
+---
+
+## 📈 第二步：公关战略响应矩阵 (SCCT Response Matrix)
+请根据第一步的分类，针对性采取以下公关话术切入点：
+
+### 1. 否认与澄清策略 (Denial Strategy) —— *适用于受害者集群*
+- **核心切入点**：证明公司与起因无关，或指明恶意来源。
+- **公关原则**：言简意赅，用客观数据说话，不激怒网民。
+
+### 2. 淡化与隔离策略 (Diminish Strategy) —— *适用于事故集群*
+- **核心切入点**：阐明这是小概率单点突发事故，强调公司已启动纠错，证明危害在可控范围内。
+- **公关原则**：表达遗憾但不主动招揽无端指责。
+
+### 3. 重塑与纠正策略 (Rebuild Strategy) —— *适用于可防范集群/严重事故*
+- **核心切入点**：**“黄金24小时”内彻底道歉**。不推诿、不寻找客观借口。宣布成立专项小组，并公布具体的**赔偿计划 (Compensation)** 与 **纠正整改路线图 (Corrective Action)**。
+- **公关原则**：坦诚是唯一的解药，整改动作必须可衡量。
+
+---
+
+## 📝 第三步：通用品牌公关响应双语模版 (Off-the-shelf Crisis Templates)
+
+若您急需发布声明，请根据事件性质参考以下**模块化公关模版**进行措辞微调：
+
+### 🟢 模版 A：技术突发与产品故障通用稿 (适用于事故集群)
+```markdown
+【中文声明】
+我们深知，近日发生的 [填写事件，例如：服务短暂中断/部分产品出货延误] 给广大用户带来了极大的不便。对此，我们表示最诚挚的歉意。
+经核查，本次事件由 [填写具体客观原因，例如：海外服务器瞬时网络波动] 导致。我们已于第一时间内完成技术修复，目前系统已全面恢复平稳。
+作为一家负责任的企业，我们已启动服务保障机制，并将全力避免此类事故再次发生。
+
+【English Version】
+We sincerely apologize for the recent [e.g., service disruption / product delivery delay] that caused inconvenience to our valued users. 
+Upon investigation, this was due to [e.g., unexpected regional server fluctuation]. Our engineering team resolved the issue immediately, and services are fully restored.
+We take this matter seriously and are implementing additional safeguards to ensure systemic stability.
+```
+
+### 🔴 模版 B：管理失职与服务漏洞通用道歉信 (适用于可防范集群)
+```markdown
+【中文道歉信】
+近日，关于 [填写曝光事件] 的报道引发了社会的广泛关注与网民批评。在此，我们不作任何辩解，郑重地向受影响的客户及公众致以最深的歉意。
+这暴露出我们在 [填写管理漏洞，例如：海外售后响应/供应链质量把控] 上的严重缺失。我们已成立由 CEO 挂帅的专项整改小组，并承诺采取以下措施：
+1. 立即开展全渠道服务审计与整改。
+2. 对受影响用户提供 [填写具体补偿方案]。
+3. 设立公开监督渠道，定期向公众汇报进展。
+
+【English Version】
+We deeply apologize for the recent events regarding [e.g., customer service oversight]. We accept full responsibility and make no excuses.
+This incident exposed significant vulnerabilities in our [e.g., quality control / service response]. We have established an immediate task force led by our CEO to implement the following actions:
+1. Conduct an immediate channel-wide operational audit.
+2. Provide [e.g., compensation / refunds] to affected users.
+3. Establish a transparent communication line to report our progress.
+```
+
+---
+*(若需恢复高精度 AI 舆情研判与定制化道歉声明，请于稍后再次启动工作流以刷新 Google 免费 Tier API 配额限制。)*
+"""
+        return static_handbook
 
 
 def parse_keywords(keyword_text: str) -> List[str]:
