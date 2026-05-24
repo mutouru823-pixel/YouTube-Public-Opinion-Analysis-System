@@ -635,18 +635,27 @@ def apply_plotly_theme(fig):
         legend=dict(font=dict(size=11, color="#94a3b8")),
         margin=dict(l=40, r=40, t=50, b=40),
     )
-    fig.update_xaxes(
-        gridcolor="rgba(255,255,255,0.05)",
-        linecolor="rgba(255,255,255,0.1)",
-        tickfont=dict(color="#64748b"),
-        titlefont=dict(color="#94a3b8"),
-    )
-    fig.update_yaxes(
-        gridcolor="rgba(255,255,255,0.05)",
-        linecolor="rgba(255,255,255,0.1)",
-        tickfont=dict(color="#64748b"),
-        titlefont=dict(color="#94a3b8"),
-    )
+    # 只有当图表包含 x/y 轴时才尝试更新，防止饼图等无轴图表在某些Plotly版本下崩溃
+    try:
+        fig.update_xaxes(
+            gridcolor="rgba(255,255,255,0.05)",
+            linecolor="rgba(255,255,255,0.1)",
+            tickfont=dict(color="#64748b"),
+            titlefont=dict(color="#94a3b8"),
+        )
+    except Exception:
+        pass
+        
+    try:
+        fig.update_yaxes(
+            gridcolor="rgba(255,255,255,0.05)",
+            linecolor="rgba(255,255,255,0.1)",
+            tickfont=dict(color="#64748b"),
+            titlefont=dict(color="#94a3b8"),
+        )
+    except Exception:
+        pass
+
 
 
 def build_wordcloud_image(df: pd.DataFrame):
