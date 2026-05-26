@@ -224,105 +224,64 @@ def contains_chinese(text: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fff]", text))
 
 
-# 🚀 Performance Engineering: Global Cache for NLTK VADER Analyzer
-@st.cache_resource
-def get_vader_analyzer():
+def classify_emotion_fallback_pure_python(text: str) -> Tuple[str, float, str]:
     """
-    单例模式缓存 VADER 分析器加载。
-    避免每条评论循环中重复实例化、下载和字典解析的巨大性能开销。
-    """
-    import nltk
-    from nltk.sentiment.vader import SentimentIntensityAnalyzer
-
-    try:
-        nltk.data.find("sentiment/vader_lexicon.zip")
-    except LookupError:
-        nltk.download("vader_lexicon", quiet=True)
-
-    return SentimentIntensityAnalyzer()
-
-
-def classify_emotion_local_7(text: str, polarity_label: str) -> str:
-    """使用本地规则分词匹配，将正/负/中极性扩展为 Ekman 7 维情绪标签。"""
-    text_lower = text.lower()
-    
-    if polarity_label == "neutral":
-        return "中立"
-        
-    if polarity_label == "positive":
-        # 检查是否有惊讶词汇或标点
-        surprise_indicators = ["?!", "!?", "！", "？", "oh", "wow", "surprise", "惊讶", "意外", "居然", "竟然"]
-        if any(ind in text_lower for ind in surprise_indicators):
-            return "惊讶"
-        return "喜悦"
-        
-    if polarity_label == "negative":
-        # 细分负面情绪为 愤怒、悲伤、恐惧、厌恶
-        # 愤怒词表
-        anger_words = ["angry", "hate", "mad", "shit", "fuck", "垃圾", "恶心", "垃圾", "愤怒", "生气", "差评", "退货", "骂", "傻"]
-        # 悲伤词表
-        sadness_words = ["sad", "cry", "sorry", "pain", "unfortunate", "难过", "伤心", "悲伤", "遗憾", "可怜", "哭", "痛"]
-        # 恐惧词表
-        fear_words = ["fear", "scared", "afraid", "worry", "panic", "terror", "害怕", "担心", "恐惧", "恐慌", "吓人", "可怕"]
-        # 厌恶词表
-        disgust_words = ["disgust", "nasty", "gross", "garbage", "sick", "厌恶", "反感", "恶劣", "鄙视", "唾弃", "抵制"]
-        
-        if any(w in text_lower for w in anger_words):
-            return "愤怒"
-        if any(w in text_lower for w in disgust_words):
-            return "厌恶"
-        if any(w in text_lower for w in sadness_words):
-            return "悲伤"
-        if any(w in text_lower for w in fear_words):
-            return "恐惧"
-            
-        return "愤怒" # 默认负面归为愤怒
-    return polarity_label
-
-
-def analyze_sentiment_local(text: str) -> Tuple[str, float, str]:
-    """
-    本地轻量级 NLP 双语情感分析（SnowNLP + VADER）。
-    返回: (sentiment_label, sentiment_score, model_used)
+    轻量级纯 Python 规则情感打标（无任何第三方库依赖，作为 API 无法连接时的纯本地安全兜底）。
     """
     if not text or not text.strip():
-        return "中立", 0.5, "none"
+        return "中立", 0.5, "纯Python兜底"
+        
+    text_lower = text.lower()
+    
+    # 情绪指标分类特征词库（支持中英双语）
+    # 喜悦词表
+    joy_indicators = ["good", "love", "like", "great", "awesome", "perfect", "nice", "best", "wonderful", "cool", "happy", "棒", "赞", "喜悦", "喜欢", "支持", "不错", "好评", "优秀", "牛逼", "厉害", "给力"]
+    # 悲伤词表
+    sadness_indicators = ["sad", "cry", "sorry", "pain", "unfortunate", "disappointed", "regret", "难过", "伤心", "悲伤", "遗憾", "可怜", "哭", "痛", "失望", "委屈"]
+    # 愤怒词表
+    anger_indicators = ["angry", "hate", "mad", "shit", "fuck", "damn", "annoyed", "垃圾", "恶心", "愤怒", "生气", "差评", "退货", "骂", "傻", "极其恶劣", "滚", "无耻", "混蛋"]
+    # 恐惧词表
+    fear_indicators = ["fear", "scared", "afraid", "worry", "panic", "terror", "anxious", "害怕", "担心", "恐惧", "恐慌", "吓人", "可怕", "焦虑", "担忧", "忧虑"]
+    # 厌恶词表
+    disgust_indicators = ["disgust", "nasty", "gross", "garbage", "sick", "recoil", "厌恶", "反感", "恶劣", "鄙视", "唾弃", "抵制", "下作"]
+    # 惊讶词表
+    surprise_indicators = ["?!", "!?", "！", "？", "oh", "wow", "surprise", "amazed", "shocked", "惊讶", "意外", "居然", "竟然", "吃惊", "天哪"]
+    
+    joy_hits = sum(1 for w in joy_indicators if w in text_lower)
+    sad_hits = sum(1 for w in sadness_indicators if w in text_lower)
+    ang_hits = sum(1 for w in anger_indicators if w in text_lower)
+    fear_hits = sum(1 for w in fear_indicators if w in text_lower)
+    dis_hits = sum(1 for w in disgust_indicators if w in text_lower)
+    sur_hits = sum(1 for w in surprise_indicators if w in text_lower)
+    
+    hits = {
+        "喜悦": joy_hits,
+        "悲伤": sad_hits,
+        "愤怒": ang_hits,
+        "恐惧": fear_hits,
+        "厌恶": dis_hits,
+        "惊讶": sur_hits
+    }
+    
+    max_emotion = max(hits, key=hits.get)
+    if hits[max_emotion] == 0:
+        return "中立", 0.5, "纯Python兜底"
+        
+    if max_emotion == "喜悦":
+        score = 0.8
+    elif max_emotion == "惊讶":
+        score = 0.65
+    elif max_emotion in ["悲伤", "恐惧"]:
+        score = 0.3
+    elif max_emotion in ["愤怒", "厌恶"]:
+        score = 0.15
+    else:
+        score = 0.5
+        
+    return max_emotion, score, "纯Python兜底"
 
-    try:
-        if contains_chinese(text):
-            from snownlp import SnowNLP
 
-            score = SnowNLP(text).sentiments  # 0~1
-            if score >= 0.6:
-                label = "positive"
-            elif score <= 0.4:
-                label = "negative"
-            else:
-                label = "neutral"
-            return classify_emotion_local_7(text, label), float(score), "SnowNLP"
-
-        # 英文情绪分析（使用全局缓存的 VADER）
-        analyzer = get_vader_analyzer()
-        score_map = analyzer.polarity_scores(text)
-        compound = score_map["compound"]  # -1~1
-
-        # 归一化到 0~1 区间以对齐 SnowNLP
-        normalized_score = float((compound + 1) / 2)
-
-        if compound >= 0.05:
-            label = "positive"
-        elif compound <= -0.05:
-            label = "negative"
-        else:
-            label = "neutral"
-        return classify_emotion_local_7(text, label), normalized_score, "VADER"
-
-    except Exception:
-        # 极端异常兜底，防止分析单条数据崩溃
-        return "中立", 0.5, "fallback"
-
-
-def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> List[Tuple[str, float, str]]:
+def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str, model_name: str = "gemini-1.5-flash") -> List[Tuple[str, float, str]]:
     """
     【AI双引擎高级功能】批量使用 Gemini 对评论进行情感打标，支持多模型自动弹性回退。
     """
@@ -333,13 +292,17 @@ def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> Li
         import google.generativeai as genai
         genai.configure(api_key=api_key)
     except Exception as e:
-        st.error(f"Gemini 客户端配置失败，自动退化为本地 NLP 模型: {e}")
-        return [analyze_sentiment_local(c) for c in comments]
-
-    # 声明候选模型列表
-    candidate_models = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-pro"]
+        st.error(f"Gemini 客户端配置失败，自动退化为纯 Python 规则模型: {e}")
+        return [classify_emotion_fallback_pure_python(c) for c in comments]
+ 
+    # 声明候选模型列表，优先尝试用户所选的模型
+    candidate_models = [model_name] if model_name else []
+    candidate_models.extend(["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"])
+    # 去重保留顺序
+    seen = set()
+    candidate_models = [x for x in candidate_models if not (x in seen or seen.add(x))]
     active_model_name = None
-
+ 
     for i in range(0, len(comments), batch_size):
         batch = comments[i : i + batch_size]
         
@@ -347,7 +310,7 @@ def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> Li
         inputs = []
         for idx, text in enumerate(batch):
             inputs.append({"id": idx, "text": text[:200]})
-
+ 
         prompt = f"""
 你是一名专业的高级社交媒体与传播学数据分析师。请对以下评论列表进行精细的情感维度分类。
 你必须对每条评论进行情绪维度分类，必须是以下七类之一（选择最贴切的一项作为情绪标签）：
@@ -358,14 +321,14 @@ def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> Li
 5. "厌恶" (反感、恶心、鄙视、嫌弃、唾弃、抵制等拒绝认同的态度)
 6. "惊讶" (吃惊、意外、出乎意料、难以置信等被震惊的态度)
 7. "中立" (平静、客观叙事、无明显情绪波动的客观事实陈述)
-
+ 
 另外，请给出一个在 0.0 到 1.0 之间的小数作为情绪极性得分（0.0代表极度消极，0.5代表中立，1.0代表极度积极）。
-
+ 
 待分类评论列表:
 ```json
 {json.dumps(inputs, ensure_ascii=False)}
 ```
-
+ 
 请严格返回符合以下 JSON 格式的数组，不要包含任何额外的 markdown 格式或多余的文字，只需返回纯 JSON：
 [
   {{"id": 0, "sentiment": "喜悦", "score": 0.85}},
@@ -376,12 +339,12 @@ def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> Li
         last_err = ""
         # 优先使用已经验证成功的可用模型，否则逐个尝试
         models_to_try = [active_model_name] if active_model_name else candidate_models
-
-        for model_name in models_to_try:
+ 
+        for m_name in models_to_try:
             try:
-                model = genai.GenerativeModel(model_name)
+                model = genai.GenerativeModel(m_name)
                 response = model.generate_content(prompt)
-                active_model_name = model_name  # 锁定可用模型
+                active_model_name = m_name  # 锁定可用模型
                 break
             except Exception as e:
                 last_err = str(e)
@@ -390,14 +353,14 @@ def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> Li
                     continue
                 else:
                     break
-
+ 
         if response is None:
             # 批次失败降级
             for text in batch:
-                label, score, model_used = analyze_sentiment_local(text)
+                label, score, model_used = classify_emotion_fallback_pure_python(text)
                 results.append((label, score, f"{model_used}(LLM失败降级)"))
             continue
-
+ 
         try:
             res_text = response.text.strip()
             
@@ -412,81 +375,177 @@ def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> Li
             items_sorted = sorted(items, key=lambda x: x["id"])
             
             for idx, item in enumerate(items_sorted):
-                label = item.get("sentiment", "neutral")
+                label = item.get("sentiment", "中立")
                 score = float(item.get("score", 0.5))
                 results.append((label, score, f"Gemini ({active_model_name})"))
                 
         except Exception as e:
             # 解析失败降级
             for text in batch:
-                label, score, model_used = analyze_sentiment_local(text)
+                label, score, model_used = classify_emotion_fallback_pure_python(text)
                 results.append((label, score, f"{model_used}(解析失败降级)"))
                 
     return results
 
 
-def generate_scct_insights(negative_comments: List[str], api_key: str) -> str:
+def batch_analyze_sentiment_with_custom_api(comments: List[str], api_key: str, base_url: str, model_name: str) -> List[Tuple[str, float, str]]:
     """
-    【商业危机管理模块】基于 Coombs 的 SCCT（情境危机传播理论）提供系统公关策略。
+    【AI自定义API高级功能】使用自定义 OpenAI 兼容接口（如 DeepSeek、OpenAI）对评论进行 7 维情绪打标。
+    """
+    results = []
+    batch_size = 20  # 每次分析 20 条，平衡交互速率与大模型请求限制
+    
+    # 规范化 URL 地址
+    url = base_url.strip()
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = "https://" + url
+    if not url.rstrip("/").endswith("/chat/completions"):
+        url = url.rstrip("/") + "/chat/completions"
+        
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+ 
+    for i in range(0, len(comments), batch_size):
+        batch = comments[i : i + batch_size]
+        inputs = []
+        for idx, text in enumerate(batch):
+            inputs.append({"id": idx, "text": text[:200]})
+ 
+        prompt = f"""
+你是一名专业的高级社交媒体与传播学数据分析师。请对以下评论列表进行精细的情感维度分类。
+你必须对每条评论进行情绪维度分类，必须是以下七类之一（选择最贴切的一项作为情绪标签）：
+1. "喜悦" (高兴、赞赏、支持、幽默、热烈期盼等积极向上的态度)
+2. "悲伤" (遗憾、伤心、失望、同情、无奈等消极倾向的态度)
+3. "愤怒" (生气、谴责、怒骂、剧烈抗议等极其激烈的敌对态度)
+4. "恐惧" (担忧、害怕、恐慌、顾虑、忧心忡忡等缺乏安全感的态度)
+5. "厌恶" (反感、恶心、鄙视、嫌弃、唾弃、抵制等拒绝认同的态度)
+6. "惊讶" (吃吃惊、意外、出乎意料、难以置信等被震惊的态度)
+7. "中立" (平静、客观叙事、无明显情绪波动的客观事实陈述)
+ 
+另外，请给出一个在 0.0 到 1.0 之间的小数作为情绪极性得分（0.0代表极度消极，0.5代表中立，1.0代表极度积极）。
+ 
+待分类评论列表:
+```json
+{json.dumps(inputs, ensure_ascii=False)}
+```
+ 
+请严格返回符合以下 JSON 格式的数组，不要包含任何额外的 markdown 格式或多余的文字，只需返回纯 JSON：
+[
+  {{"id": 0, "sentiment": "喜悦", "score": 0.85}},
+  ...
+]
+"""
+        payload = {
+            "model": model_name,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3
+        }
+ 
+        try:
+            import requests
+            res = requests.post(url, headers=headers, json=payload, timeout=45)
+            res.raise_for_status()
+            data = res.json()
+            res_text = data["choices"][0]["message"]["content"].strip()
+            
+            # 清理 Markdown 代码块
+            if res_text.startswith("```json"):
+                res_text = res_text[7:]
+            if res_text.endswith("```"):
+                res_text = res_text[:-3]
+            res_text = res_text.strip()
+            
+            # 提取 JSON 数组
+            match = re.search(r"\[\s*\{.*\}\s*\]", res_text, re.DOTALL)
+            if match:
+                res_text = match.group(0)
+                
+            items = json.loads(res_text)
+            items_sorted = sorted(items, key=lambda x: x["id"])
+            
+            for item in items_sorted:
+                label = item.get("sentiment", "中立")
+                score = float(item.get("score", 0.5))
+                results.append((label, score, f"Custom ({model_name})"))
+                
+        except Exception as e:
+            # 失败后降级为纯 Python 本地兜底
+            for text in batch:
+                label, score, model_used = classify_emotion_fallback_pure_python(text)
+                results.append((label, score, f"{model_used}(API连接或解析异常兜底)"))
+                
+    return results
+
+
+def generate_scct_insights(negative_comments: List[str], api_key: str, model_name: str = "gemini-1.5-flash") -> str:
+    """
+    【商业危机管理模块】使用 Google Gemini API 基于 Coombs 的 SCCT（情境危机传播理论）提供系统公关策略。
     """
     if not api_key:
-        return "⚠️ 请在左侧参数配置面板输入 Gemini API Key 以激活 SCCT 公关战略模块。"
+        return "⚠️ 请在左侧参数配置面板输入 API Key 以激活 SCCT 公关战略模块。"
         
     if not negative_comments:
         return "💡 暂未检测到明显的负面言论，品牌声誉安全，无需触发 SCCT 危机预案。"
 
-    # 取高权重（如被点赞多）的负面言论样本，限制 token
     sample_comments = negative_comments[:40]
     comments_text = "\n".join([f"- {c}" for c in sample_comments])
 
-    prompt = f"""
+    prompt = f'''
 你是一名资深传播学学者和计算社会学（Computational Social Science）科研专家。请根据 Coombs 的 **情境危机传播理论 (Situational Crisis Communication Theory, SCCT)**，对以下 YouTube 视频语料中的负面抗议意见进行严格的学术定量内容分析与个案编码。
-
+ 
 负面评论样本：
-\"\"\"
+"""
 {comments_text}
-\"\"\"
-
+"""
+ 
 请生成一份专业、符合国际核心学术期刊发表标准、高度结构化的【SCCT 学术定量内容分析与危机个案编码报告】。报告应包含以下核心板块，并以精美专业的 Markdown 格式输出：
-
+ 
 ### 🔬 1. 舆论文本议题编码与情绪特征 (Topic Coding & Emotional Profiles)
 - **公众舆论核心痛点与编码（Top 3 Issues）**：提取网民最强烈的不满、质疑和诉求，进行语义主题编码，并剖析其深层社会心理动因。
 - **情感危机烈度与声誉危害评估 (Reputational Threat Assessment)**：评估负向情感倾斜严重度，量化网民情绪对抗烈度，分析其对品牌象征性社会资本与媒介声誉的短期与长期危害。
-
+ 
 ### 📚 2. SCCT 危机情境学术编码 (SCCT Academic Case-Study Coding)
 基于 Coombs 的 SCCT 理论，判断该事件属于以下哪类危机集群（进行严密的学术理论论证，给出具体编码理由及责任归因强度的研判）：
 - **受害者集群 (Victim Cluster)**：组织被视为外部被侵害方（如自然灾害、谣言抹黑、外部恶意入侵）。归因责任：极低 (Minimal Attribution)。
 - **事故集群 (Accidental Cluster)**：组织非蓄意但因技术、操作故障诱发（如意外设备故障、非恶意产品缺陷）。归因责任：中等 (Moderate Attribution)。
 - **可防范集群 (Preventable Cluster)**：组织故意违法违规或管理严重失职、知情隐瞒不报导致。归因责任：极高 (Severe Attribution)。
-
+ 
 ### 📈 3. 基于 SCCT 模型的理论化应对策略矩阵 (Theoretical Strategy Matrix)
 根据前面的危机编码，推荐采取何种危机沟通响应策略（提供符合 Coombs 理论框架的策略配比建议，并给出学术性话术要点指导）：
 - **否认策略 (Denial)**：划清界限、驳斥谣言或强调组织无辜。（适用受害者集群，低归因责任）
 - **淡化策略 (Diminish)**：强调外部客观因素，重申损害可控，降低公众对危机严重性的感知。（适用事故集群，中等归因责任）
 - **重塑策略 (Rebuild)**：诚恳道歉，承担全部责任，并提供实质性补偿（Compensation）与纠正措施（Corrective Action）。（适用可防范/严重事故集群，高归因责任）
 - **迎合/强化策略 (Bolstering)**：提醒公众组织过去的良好记录，对支持者表示感谢，重建信任纽带。
-
+ 
 ### 📝 4. 危机响应个案研究双语示范文本设计 (Bilingual Narrative Research Design)
-提供一版用于本案例实证研究参考的**官方声明/道歉信学术模型样本**：
+提供一版用于本案例实证研究参考官方声明/道歉信学术模型样本：
 - **中文版本 (Chinese Empirical Template)**
 - **英文版本 (English Empirical Template)**
 - **文本修辞学与叙事要点解析**：从叙事学和修辞学角度，阐明该文本设计如何有效对应危机责任规避或公众情感修复（例如：优先关注受害人利益、展现主动纠错担当、承诺具体的后续整改路线）。
-
+ 
 ### 📖 5. 学术参考文献 (APA 7th Edition References)
 列出报告中引用的主要 SCCT 理论与计算传播学核心学术文献列表，必须采用严格的 **APA 第 7 版标准学术参考文献格式**。至少包含 Timothy Coombs 的经典论文与专著。
-"""
+'''
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
         
         # 弹性候选模型列表
-        candidate_models = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-pro"]
+        candidate_models = [model_name] if model_name else []
+        candidate_models.extend(["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"])
+        seen = set()
+        candidate_models = [x for x in candidate_models if not (x in seen or seen.add(x))]
+        
         response = None
         last_err = ""
         
-        for model_name in candidate_models:
+        for m_name in candidate_models:
             try:
-                model = genai.GenerativeModel(model_name)
+                model = genai.GenerativeModel(m_name)
                 response = model.generate_content(prompt)
                 break  # 成功生成即跳出循环
             except Exception as e:
@@ -503,66 +562,151 @@ def generate_scct_insights(negative_comments: List[str], api_key: str) -> str:
         return response.text
     except Exception as e:
         err_msg = str(e)
+        return get_static_crisis_handbook(err_msg)
+
+
+def generate_scct_insights_custom_api(negative_comments: List[str], api_key: str, base_url: str, model_name: str) -> str:
+    """
+    【商业危机管理模块】使用自定义 OpenAI 兼容 API 基于 Coombs 的 SCCT（情境危机传播理论）提供系统公关策略。
+    """
+    if not api_key:
+        return "⚠️ 请在左侧参数配置面板输入 API Key 以激活 SCCT 公关战略模块。"
         
-        # 构建离线版危机自诊断手册，提供商业级的高可用度降级方案
-        static_handbook = f"""
+    if not negative_comments:
+        return "💡 暂未检测到明显的负面言论，品牌声誉安全，无需触发 SCCT 危机预案。"
+ 
+    sample_comments = negative_comments[:40]
+    comments_text = "\n".join([f"- {c}" for c in sample_comments])
+ 
+    prompt = f"""
+你是一名资深传播学学者和计算社会学（Computational Social Science）科研专家。请根据 Coombs 的 **情境危机传播理论 (Situational Crisis Communication Theory, SCCT)**，对以下 YouTube 视频语料中的负面抗议意见进行严格的学术定量内容分析与个案编码。
+ 
+负面评论样本：
+\"\"\"
+{comments_text}
+\"\"\"
+ 
+请生成一份专业、符合国际核心学术期刊发表标准、高度结构化的【SCCT 学术定量内容分析与危机个案编码报告】。报告应包含以下核心板块，并以精美专业的 Markdown 格式输出：
+ 
+### 🔬 1. 舆论文本议题编码与情绪特征 (Topic Coding & Emotional Profiles)
+- **公众舆论核心痛点与编码（Top 3 Issues）**：提取网民最强烈的不满、质疑和诉求，进行语义主题编码，并剖析其深层社会心理动因。
+- **情感危机烈度与声誉危害评估 (Reputational Threat Assessment)**：评估负向情感倾斜严重度，量化网民情绪对抗烈度，分析其对品牌象征性社会资本与媒介声誉的短期与长期危害。
+ 
+### 📚 2. SCCT 危机情境学术编码 (SCCT Academic Case-Study Coding)
+基于 Coombs 的 SCCT 理论，判断该事件属于以下哪类危机集群（进行严密的学术理论论证，给出具体编码理由及责任归因强度的研判）：
+- **受害者集群 (Victim Cluster)**：组织被视为外部被侵害方（如自然灾害、谣言抹黑、外部恶意入侵）。归因责任：极低 (Minimal Attribution)。
+- **事故集群 (Accidental Cluster)**：组织非蓄意但因技术、操作故障诱发（如意外设备故障、非恶意产品缺陷）。归因责任：中等 (Moderate Attribution)。
+- **可防范集群 (Preventable Cluster)**：组织故意违法违规或管理严重失职、知情隐瞒不报导致。归因责任：极高 (Severe Attribution)。
+ 
+### 📈 3. 基于 SCCT 模型的理论化应对策略矩阵 (Theoretical Strategy Matrix)
+根据前面的危机编码，推荐采取何种危机沟通响应策略（提供符合 Coombs 理论框架的策略配比建议，并给出学术性话术要点指导）：
+- **否认策略 (Denial)**：划清界限、驳斥谣言或强调组织无辜。（适用受害者集群，低归因责任）
+- **淡化策略 (Diminish)**：强调外部客观因素，重申损害可控，降低公众对危机严重性的感知。（适用事故集群，中等归因责任）
+- **重塑策略 (Rebuild)**：诚恳道歉，承担全部责任，并提供实质性补偿（Compensation）与纠正措施（Corrective Action）。（适用可防范/严重事故集群，高归因责任）
+- **迎合/强化策略 (Bolstering)**：提醒公众组织过去的良好记录，对支持者表示感谢，重建信任纽带。
+ 
+### 📝 4. 危机响应个案研究双语示范文本设计 (Bilingual Narrative Research Design)
+提供一版用于本案例实证研究参考的官方声明/道歉信学术模型样本：
+- **中文版本 (Chinese Empirical Template)**
+- **英文版本 (English Empirical Template)**
+- **文本修辞学与叙事要点解析**：从叙事学和修辞学角度，阐明该文本设计如何有效对应危机责任规避或公众情感修复（例如：优先关注受害人利益、展现主动纠错担当、承诺具体的后续整改路线）。
+ 
+### 📖 5. 学术参考文献 (APA 7th Edition References)
+列出报告中引用的主要 SCCT 理论与计算传播学核心学术文献列表，必须采用严格的 **APA 第 7 版标准学术参考文献格式**。至少包含 Timothy Coombs 的经典论文与专著。
+"""
+    # 规范化 URL
+    url = base_url.strip()
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = "https://" + url
+    if not url.rstrip("/").endswith("/chat/completions"):
+        url = url.rstrip("/") + "/chat/completions"
+        
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.5
+    }
+ 
+    try:
+        import requests
+        res = requests.post(url, headers=headers, json=payload, timeout=60)
+        res.raise_for_status()
+        data = res.json()
+        return data["choices"][0]["message"]["content"]
+    except Exception as e:
+        err_msg = str(e)
+        return get_static_crisis_handbook(err_msg)
+
+
+def get_static_crisis_handbook(err_msg: str) -> str:
+    """
+    提供标准跨区域危机公关应对指南与双语道歉大纲（离线公关自诊断中枢）
+    """
+    static_handbook = f"""
 ### 🚨 AI 决策引擎触发配额熔断 / 限流保护 (Rate Limit & Quota Exceeded)
-
-> **⚠️ 提示**：检测到您的 Google Gemini API Key 目前已达到免费额度限制或触发了每分钟频率限流限额（原始报错：{err_msg}）。
+ 
+> **⚠️ 提示**：检测到您的 AI 接口调用目前已达到额度限制、触发频率限流或连接异常（原始报错：{err_msg}）。
 > 为了不影响您的决策，根据 **SCCT 危机公关理论防御性原则**，系统已自动启动**「离线危机公关自诊断中枢」**，为您提供标准的跨区域公关应对指南与双语通用道歉大纲。
-
+ 
 ---
-
+ 
 # 📚 《出海企业标准 SCCT 危机沟通自诊断手册》
 *(Timothy Coombs 教授情境危机传播理论标准版)*
-
+ 
 在缺乏实时 AI 分析时，请依据本手册分步进行品牌舆情自诊断：
-
+ 
 ## 📌 第一步：舆情事件责任定性 (Attribution of Responsibility)
 根据负面评论的爆发诱因，对照下表确定事件属于哪类 **SCCT 危机集群 (Crisis Cluster)**：
-
+ 
 | 危机集群 (Cluster) | 现实场景实例 (Examples) | 网民责任归因 (Attribution) | 推荐核心公关态度 (Posture) |
 | :--- | :--- | :--- | :--- |
 | **受害者集群 (Victim)** | 谣言恶意抹黑、自然灾害、外部骇客攻击 | 极低 (Minimal) | **驳斥与澄清 (Denial)** / 划清界限 |
 | **事故集群 (Accidental)** | 技术突发故障、非恶意产品设计缺陷、供应链延误 | 中等 (Moderate) | **淡化客观原因 (Diminish)** + 修正承诺 |
 | **可防范集群 (Preventable)** | 故意违法违规、管理严重失职、知情隐瞒不报 | 极高 (Severe) | **彻底重塑信任 (Rebuild)** + 赔偿与整改 |
-
+ 
 ---
-
+ 
 ## 📈 第二步：公关战略响应矩阵 (SCCT Response Matrix)
 请根据第一步的分类，针对性采取以下公关话术切入点：
-
+ 
 ### 1. 否认与澄清策略 (Denial Strategy) —— *适用于受害者集群*
 - **核心切入点**：证明公司与起因无关，或指明恶意来源。
 - **公关原则**：言简意赅，用客观数据说话，不激怒网民。
-
+ 
 ### 2. 淡化与隔离策略 (Diminish Strategy) —— *适用于事故集群*
 - **核心切入点**：阐明这是小概率单点突发事故，强调公司已启动纠错，证明危害在可控范围内。
 - **公关原则**：表达遗憾但不主动招揽无端指责。
-
+ 
 ### 3. 重塑与纠正策略 (Rebuild Strategy) —— *适用于可防范集群/严重事故*
 - **核心切入点**：**“黄金24小时”内彻底道歉**。不推诿、不寻找客观借口。宣布成立专项小组，并公布具体的**赔偿计划 (Compensation)** 与 **纠正整改路线图 (Corrective Action)**。
 - **公关原则**：坦诚是唯一的解药，整改动作必须可衡量。
-
+ 
 ---
-
+ 
 ## 📝 第三步：通用品牌公关响应双语模版 (Off-the-shelf Crisis Templates)
-
+ 
 若您急需发布声明，请根据事件性质参考以下**模块化公关模版**进行措辞微调：
-
+ 
 ### 🟢 模版 A：技术突发与产品故障通用稿 (适用于事故集群)
 ```markdown
 【中文声明】
 我们深知，近日发生的 [填写事件，例如：服务短暂中断/部分产品出货延误] 给广大用户带来了极大的不便。对此，我们表示最诚挚的歉意。
 经核查，本次事件由 [填写具体客观原因，例如：海外服务器瞬时网络波动] 导致。我们已于第一时间内完成技术修复，目前系统已全面恢复平稳。
 作为一家负责任的企业，我们已启动服务保障机制，并将全力避免此类事故再次发生。
-
+ 
 【English Version】
 We sincerely apologize for the recent [e.g., service disruption / product delivery delay] that caused inconvenience to our valued users. 
 Upon investigation, this was due to [e.g., unexpected regional server fluctuation]. Our engineering team resolved the issue immediately, and services are fully restored.
 We take this matter seriously and are implementing additional safeguards to ensure systemic stability.
 ```
-
+ 
 ### 🔴 模版 B：管理失职与服务漏洞通用道歉信 (适用于可防范集群)
 ```markdown
 【中文道歉信】
@@ -571,7 +715,7 @@ We take this matter seriously and are implementing additional safeguards to ensu
 1. 立即开展全渠道服务审计与整改。
 2. 对受影响用户提供 [填写具体补偿方案]。
 3. 设立公开监督渠道，定期向公众汇报进展。
-
+ 
 【English Version】
 We deeply apologize for the recent events regarding [e.g., customer service oversight]. We accept full responsibility and make no excuses.
 This incident exposed significant vulnerabilities in our [e.g., quality control / service response]. We have established an immediate task force led by our CEO to implement the following actions:
@@ -579,13 +723,12 @@ This incident exposed significant vulnerabilities in our [e.g., quality control 
 2. Provide [e.g., compensation / refunds] to affected users.
 3. Establish a transparent communication line to report our progress.
 ```
-
+ 
 ---
-*(若需恢复高精度 AI 舆情研判与定制化道歉声明，请于稍后再次启动工作流以刷新 Google 免费 Tier API 配额限制。)*
+*(若需恢复高精度 AI 舆情研判与定制化道歉声明，请确认您的 API 额度充足或更换高可用的 API Key / 基础端点。)*
 """
-        return static_handbook
-
-
+    return static_handbook
+ 
 def parse_keywords(keyword_text: str) -> List[str]:
     """解析多关键词输入，支持中英文逗号和空格分隔。"""
     if not keyword_text or not keyword_text.strip():
@@ -1539,19 +1682,53 @@ def main():
         # Engine selections
         sentiment_engine = st.selectbox(
             "🏷️ 文本情感编码引擎",
-            ["本地 NLP 轻量引擎 (VADER & SnowNLP)", "云端大语言模型引擎 (Gemini LLM)"],
-            help="若选择 Gemini 引擎，需在下方提供 Gemini API Key；其支持超强语境和反讽语义判定。"
+            ["官方 Google Gemini API", "自定义 OpenAI 兼容 API (如 DeepSeek, OpenAI等)"],
+            help="计算传播学大语言模型情感打标引擎。Gemini 官方引擎或自定义 API（支持 DeepSeek 等各类 OpenAI 兼容接口）"
         )
         
-        gemini_api_key = st.text_input(
-            "Gemini API Key",
-            type="password",
-            value=os.getenv("GEMINI_API_KEY", ""),
-            placeholder="AI 学术编码与 LLM 分析所需",
-            help="可选。用于解锁高级 AI 危机公关 SCCT 诊断功能和大模型情绪打标。"
-        )
+        if sentiment_engine == "官方 Google Gemini API":
+            gemini_api_key = st.text_input(
+                "Gemini API Key",
+                type="password",
+                value=os.getenv("GEMINI_API_KEY", ""),
+                placeholder="AI 学术编码与 LLM 分析所需",
+                help="用于解锁高级 AI 危机公关 SCCT 诊断功能和大模型情绪打标。"
+            )
+            gemini_model = st.text_input(
+                "Gemini 模型名称",
+                value="gemini-1.5-flash",
+                placeholder="例如: gemini-1.5-flash, gemini-2.0-flash, gemini-pro",
+                help="您可以手动输入最新的 Gemini 模型名称进行测试。"
+            )
+            # Define placeholders for custom API variables to avoid NameError
+            custom_api_key = ""
+            custom_base_url = ""
+            custom_model_name = ""
+        else:
+            custom_api_key = st.text_input(
+                "API Key (如 DeepSeek SK)",
+                type="password",
+                value=os.getenv("CUSTOM_API_KEY", "sk-3131f75b62a2453f859f0fce6719b9b4"),
+                placeholder="输入您的 API Key",
+                help="例如您的 DeepSeek Key: sk-..."
+            )
+            custom_base_url = st.text_input(
+                "API Base URL",
+                value="https://api.deepseek.com",
+                placeholder="例如: https://api.deepseek.com",
+                help="第三方 OpenAI 兼容 API 的基础接口地址"
+            )
+            custom_model_name = st.text_input(
+                "模型名称 (Model)",
+                value="deepseek-chat",
+                placeholder="例如: deepseek-chat, deepseek-v4-flash",
+                help="所调用的模型名称标识符"
+            )
+            # Define placeholders for gemini variables to avoid NameError
+            gemini_api_key = ""
+            gemini_model = ""
         
-        enable_scct = st.checkbox("📚 开启 SCCT 学术编码模型", value=True, help="启用后，将使用 Gemini 自动根据情境危机传播理论对负向文本进行内容分析与学术编码。")
+        enable_scct = st.checkbox("📚 开启 SCCT 学术编码模型", value=True, help="启用后，将使用 Gemini 或自定义 API 自动根据情境危机传播理论对负向文本进行内容分析与学术编码。")
         
         run_btn = st.button("🚀 启动数据工作流", type="primary", use_container_width=True)
 
@@ -1561,8 +1738,12 @@ def main():
             st.error("🔑 错误：缺少 YouTube Data API Key，请在侧边栏中配置。")
             return
             
-        if sentiment_engine == "云端大语言模型引擎 (Gemini LLM)" and not gemini_api_key:
+        if sentiment_engine == "官方 Google Gemini API" and not gemini_api_key:
             st.error("🔑 错误：已启用 Gemini 情感分析引擎，但未提供 Gemini API Key。")
+            return
+
+        if sentiment_engine == "自定义 OpenAI 兼容 API (如 DeepSeek, OpenAI等)" and not custom_api_key:
+            st.error("🔑 错误：已启用自定义 API 引擎，但未提供 API Key。")
             return
 
         try:
@@ -1587,22 +1768,10 @@ def main():
 
             # 3. Sentiment tagging
             with st.spinner("🧠 语义情绪特征打标与数据归集..."):
-                # 如果选了本地 NLP 引擎
-                if sentiment_engine == "本地 NLP 轻量引擎 (VADER & SnowNLP)":
-                    sentiment_labels = []
-                    sentiment_scores = []
-                    sentiment_models = []
-                    for text in df["comment_text"].tolist():
-                        label, score, model = analyze_sentiment_local(text)
-                        sentiment_labels.append(label)
-                        sentiment_scores.append(score)
-                        sentiment_models.append(model)
-                    df["sentiment"] = sentiment_labels
-                    df["sentiment_score"] = sentiment_scores
-                    df["sentiment_model"] = sentiment_models
+                if sentiment_engine == "官方 Google Gemini API":
+                    df = run_sentiment_gemini_wrapper(df, gemini_api_key, gemini_model)
                 else:
-                    # 选了 Gemini 引擎，进行高吞吐量 Batching 分析
-                    df = run_sentiment_gemini_wrapper(df, gemini_api_key)
+                    df = run_sentiment_custom_wrapper(df, custom_api_key, custom_base_url, custom_model_name)
 
             if df.empty:
                 st.error("❌ 清洗后数据集为空，无法生成可视化图表。")
@@ -1610,7 +1779,12 @@ def main():
 
             # Store results in streamlit session state for cross-tab persistence
             st.session_state["opinion_df"] = df
+            st.session_state["sentiment_engine"] = sentiment_engine
             st.session_state["gemini_key"] = gemini_api_key
+            st.session_state["gemini_model"] = gemini_model
+            st.session_state["custom_key"] = custom_api_key
+            st.session_state["custom_base_url"] = custom_base_url
+            st.session_state["custom_model"] = custom_model_name
             st.session_state["scct_enabled"] = enable_scct
             st.success("🎉 数据集自动化治理与情绪计算流程圆满完成！已切换至交互式展板。")
 
@@ -1618,9 +1792,15 @@ def main():
             st.error(f"💥 系统遭遇不可抗力故障: {e}")
 
     # Display panel tabs if data is available
+    # Display panel tabs if data is available
     if "opinion_df" in st.session_state:
         df = st.session_state["opinion_df"]
-        gemini_api_key = st.session_state["gemini_key"]
+        sentiment_engine = st.session_state.get("sentiment_engine", "官方 Google Gemini API")
+        gemini_api_key = st.session_state.get("gemini_key", "")
+        gemini_model = st.session_state.get("gemini_model", "gemini-1.5-flash")
+        custom_api_key = st.session_state.get("custom_key", "")
+        custom_base_url = st.session_state.get("custom_base_url", "https://api.deepseek.com")
+        custom_model_name = st.session_state.get("custom_model", "deepseek-chat")
         enable_scct = st.session_state["scct_enabled"]
 
         # Render Academic Metric Cards
@@ -1666,41 +1846,60 @@ def main():
             neg_comments = df[df["sentiment"].isin(["愤怒", "悲伤", "恐惧", "厌恶", "negative"])].sort_values(by="like_count", ascending=False)["comment_text"].tolist()
             
             if not enable_scct:
-                st.info("💡 学术研究模型未启用。请在侧边栏勾选“开启 SCCT 学术编码模型”并配置 API Key 激活。")
-            elif not gemini_api_key:
-                st.warning("🔑 提示：需要配置 Gemini API Key 以加载高级 SCCT 危机实证编码分析模块。")
-                
-                # 学术性科普栏目，在无 Key 时展示，彰显学术理论性
-                st.markdown(
-                    """
-                    > **经典 SCCT 情境危机传播理论（Timothy Coombs 教授）**
-                    > SCCT 是传播学领域在危机沟通和品牌声誉管理方面的**核心权威理论框架**。该理论主张：企业组织遭遇声誉危机时，所面临的公共关系威胁直接取决于**公众对危机事件归因责任的严重度**。
-                    > 
-                    > 理论将情境划分为三大危机集群：
-                    > 1. **受害者集群 (Victim Cluster)**：组织被视为外部被侵害方。归因责任：极低。*（推荐策略：否认/澄清 Denial）*
-                    > 2. **事故集群 (Accidental Cluster)**：组织非恶意，因偶然操作/技术故障诱发。归因责任：中等。*（推荐策略：淡化客观因素 Diminish）*
-                    > 3. **可防范集群 (Preventable Cluster)**：组织故意违法违规或严重管理失职。归因责任：极高。*（推荐策略：重塑道歉/纠正整改 Rebuild）*
-                    > 
-                    > **如何解锁该学术实证模块？**
-                    > 在左侧参数面板中配置 `Gemini API Key` 并点击启动工作流。计算智能将自动过滤负向抱怨文本的语义群，匹配 SCCT 理论坐标轴归因，生成符合论文发表水准的**实证编码报告与 APA 7th 标准学术参考文献列表**。
-                    """
-                )
+                st.info("💡 学术研究模型未启用。请在侧边栏勾选“开启 SCCT 学术编码模型”激活。")
             else:
-                with st.spinner("🕵️‍♂️ 传播学专家系统研判个案文本，生成 SCCT 学术实证编码报告中..."):
-                    report = generate_scct_insights(neg_comments, gemini_api_key)
-                
-                st.markdown(report)
-                
-                # 报告导出能力
-                st.download_button(
-                    label="📥 导出 SCCT 学术内容分析编码报告 (Markdown)",
-                    data=report.encode("utf-8"),
-                    file_name=f"SCCT_Academic_Coding_Report_{{datetime.now().strftime('%Y%m%d_%H%M%S')}}.md",
-                    mime="text/markdown",
-                    use_container_width=True
-                )
+                if sentiment_engine == "官方 Google Gemini API":
+                    if not gemini_api_key:
+                        st.warning("🔑 提示：需要配置 Gemini API Key 以加载高级 SCCT 危机实证编码分析模块。")
+                        
+                        # 学术性科普栏目，在无 Key 时展示，彰显学术理论性
+                        st.markdown(
+                            """
+                            > **经典 SCCT 情境危机传播理论（Timothy Coombs 教授）**
+                            > SCCT 是传播学领域在危机沟通和品牌声誉管理方面的**核心权威理论框架**。该理论主张：企业组织遭遇声誉危机时，所面临的公共关系威胁直接取决于**公众对危机事件归因责任的严重度**。
+                            > 
+                            > 理论将情境划分为三大危机集群：
+                            > 1. **受害者集群 (Victim Cluster)**：组织被视为外部被侵害方。归因责任：极低。*（推荐策略：否认/澄清 Denial）*
+                            > 2. **事故集群 (Accidental Cluster)**：组织非恶意，因偶然操作/技术故障诱发。归因责任：中等。*（推荐策略：淡化客观因素 Diminish）*
+                            > 3. **可防范集群 (Preventable Cluster)**：组织故意违法违规或管理严重失职。归因责任：极高。*（推荐策略：重塑道歉/纠正整改 Rebuild）*
+                            > 
+                            > **如何解锁该学术实证模块？**
+                            > 在左侧参数面板中配置 `Gemini API Key` 并点击启动工作流。计算智能将自动过滤负向抱怨文本的语义群，匹配 SCCT 理论坐标轴归因，生成符合论文发表水准的**实证编码报告与 APA 7th 标准学术参考文献列表**。
+                            """
+                        )
+                    else:
+                        with st.spinner("🕵️‍♂️ 传播学专家系统研判个案文本，生成 SCCT 学术实证编码报告中..."):
+                            report = generate_scct_insights(neg_comments, gemini_api_key, gemini_model)
+                        
+                        st.markdown(report)
+                        
+                        # 报告导出能力
+                        st.download_button(
+                            label="📥 导出 SCCT 学术内容分析编码报告 (Markdown)",
+                            data=report.encode("utf-8"),
+                            file_name=f"SCCT_Academic_Coding_Report_{{datetime.now().strftime('%Y%m%d_%H%M%S')}}.md",
+                            mime="text/markdown",
+                            use_container_width=True
+                        )
+                else:
+                    if not custom_api_key:
+                        st.warning("🔑 提示：需要配置自定义 API Key 以加载高级 SCCT 危机实证编码分析模块。")
+                    else:
+                        with st.spinner("🕵️‍♂️ 传播学专家系统研判个案文本，生成 SCCT 学术实证编码报告中..."):
+                            report = generate_scct_insights_custom_api(neg_comments, custom_api_key, custom_base_url, custom_model_name)
+                        
+                        st.markdown(report)
+                        
+                        # 报告导出能力
+                        st.download_button(
+                            label="📥 导出 SCCT 学术内容分析编码报告 (Markdown)",
+                            data=report.encode("utf-8"),
+                            file_name=f"SCCT_Academic_Coding_Report_{{datetime.now().strftime('%Y%m%d_%H%M%S')}}.md",
+                            mime="text/markdown",
+                            use_container_width=True
+                        )
 
-        with tab4:
+        with tab5:
             render_extreme_quotes(df)
             st.divider()
             
@@ -1757,7 +1956,7 @@ def main():
                 <div class="metric-card" style="min-height: 200px;">
                     <div class="metric-title" style="color: #34d399;">🧠 混合计算语言学分类算法</div>
                     <div style="font-size: 14px; color: #cbd5e1; margin-top: 10px; line-height: 1.6;">
-                        整合高性能全局单例 VADER (英) & SnowNLP (中) 情感分类引擎；可选配大语言模型批量归一化多维打标，提供极高语义环境拟合度。
+                        整合高效的纯 Python 本地规则兜底算法与先进的大语言模型情感判定引擎，在大模型 API 调用受限或超额时提供秒级弹性退化兜底，保障计算实验流程零中断。
                     </div>
                 </div>
                 """,
@@ -1777,10 +1976,24 @@ def main():
             )
 
 
-def run_sentiment_gemini_wrapper(df: pd.DataFrame, gemini_api_key: str) -> pd.DataFrame:
+def run_sentiment_gemini_wrapper(df: pd.DataFrame, gemini_api_key: str, gemini_model: str = "gemini-1.5-flash") -> pd.DataFrame:
     """批量使用 Gemini 引擎的逻辑包装"""
     out = df.copy()
-    results = batch_analyze_sentiment_with_gemini(out["comment_text"].tolist(), gemini_api_key)
+    results = batch_analyze_sentiment_with_gemini(out["comment_text"].tolist(), gemini_api_key, gemini_model)
+    sentiment_labels = [r[0] for r in results]
+    sentiment_scores = [r[1] for r in results]
+    sentiment_models = [r[2] for r in results]
+    
+    out["sentiment"] = sentiment_labels
+    out["sentiment_score"] = sentiment_scores
+    out["sentiment_model"] = sentiment_models
+    return out
+
+
+def run_sentiment_custom_wrapper(df: pd.DataFrame, api_key: str, base_url: str, model_name: str) -> pd.DataFrame:
+    """批量使用自定义 OpenAI 兼容 API 引擎的逻辑包装"""
+    out = df.copy()
+    results = batch_analyze_sentiment_with_custom_api(out["comment_text"].tolist(), api_key, base_url, model_name)
     sentiment_labels = [r[0] for r in results]
     sentiment_scores = [r[1] for r in results]
     sentiment_models = [r[2] for r in results]
