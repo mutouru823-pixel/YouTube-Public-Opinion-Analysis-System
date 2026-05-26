@@ -242,13 +242,51 @@ def get_vader_analyzer():
     return SentimentIntensityAnalyzer()
 
 
+def classify_emotion_local_7(text: str, polarity_label: str) -> str:
+    """使用本地规则分词匹配，将正/负/中极性扩展为 Ekman 7 维情绪标签。"""
+    text_lower = text.lower()
+    
+    if polarity_label == "neutral":
+        return "中立"
+        
+    if polarity_label == "positive":
+        # 检查是否有惊讶词汇或标点
+        surprise_indicators = ["?!", "!?", "！", "？", "oh", "wow", "surprise", "惊讶", "意外", "居然", "竟然"]
+        if any(ind in text_lower for ind in surprise_indicators):
+            return "惊讶"
+        return "喜悦"
+        
+    if polarity_label == "negative":
+        # 细分负面情绪为 愤怒、悲伤、恐惧、厌恶
+        # 愤怒词表
+        anger_words = ["angry", "hate", "mad", "shit", "fuck", "垃圾", "恶心", "垃圾", "愤怒", "生气", "差评", "退货", "骂", "傻"]
+        # 悲伤词表
+        sadness_words = ["sad", "cry", "sorry", "pain", "unfortunate", "难过", "伤心", "悲伤", "遗憾", "可怜", "哭", "痛"]
+        # 恐惧词表
+        fear_words = ["fear", "scared", "afraid", "worry", "panic", "terror", "害怕", "担心", "恐惧", "恐慌", "吓人", "可怕"]
+        # 厌恶词表
+        disgust_words = ["disgust", "nasty", "gross", "garbage", "sick", "厌恶", "反感", "恶劣", "鄙视", "唾弃", "抵制"]
+        
+        if any(w in text_lower for w in anger_words):
+            return "愤怒"
+        if any(w in text_lower for w in disgust_words):
+            return "厌恶"
+        if any(w in text_lower for w in sadness_words):
+            return "悲伤"
+        if any(w in text_lower for w in fear_words):
+            return "恐惧"
+            
+        return "愤怒" # 默认负面归为愤怒
+    return polarity_label
+
+
 def analyze_sentiment_local(text: str) -> Tuple[str, float, str]:
     """
     本地轻量级 NLP 双语情感分析（SnowNLP + VADER）。
     返回: (sentiment_label, sentiment_score, model_used)
     """
     if not text or not text.strip():
-        return "neutral", 0.5, "none"
+        return "中立", 0.5, "none"
 
     try:
         if contains_chinese(text):
@@ -256,10 +294,12 @@ def analyze_sentiment_local(text: str) -> Tuple[str, float, str]:
 
             score = SnowNLP(text).sentiments  # 0~1
             if score >= 0.6:
-                return "positive", float(score), "SnowNLP"
-            if score <= 0.4:
-                return "negative", float(score), "SnowNLP"
-            return "neutral", float(score), "SnowNLP"
+                label = "positive"
+            elif score <= 0.4:
+                label = "negative"
+            else:
+                label = "neutral"
+            return classify_emotion_local_7(text, label), float(score), "SnowNLP"
 
         # 英文情绪分析（使用全局缓存的 VADER）
         analyzer = get_vader_analyzer()
@@ -270,14 +310,16 @@ def analyze_sentiment_local(text: str) -> Tuple[str, float, str]:
         normalized_score = float((compound + 1) / 2)
 
         if compound >= 0.05:
-            return "positive", normalized_score, "VADER"
-        if compound <= -0.05:
-            return "negative", normalized_score, "VADER"
-        return "neutral", 0.5, "VADER"
+            label = "positive"
+        elif compound <= -0.05:
+            label = "negative"
+        else:
+            label = "neutral"
+        return classify_emotion_local_7(text, label), normalized_score, "VADER"
 
     except Exception:
         # 极端异常兜底，防止分析单条数据崩溃
-        return "neutral", 0.5, "fallback"
+        return "中立", 0.5, "fallback"
 
 
 def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> List[Tuple[str, float, str]]:
@@ -307,8 +349,17 @@ def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> Li
             inputs.append({"id": idx, "text": text[:200]})
 
         prompt = f"""
-你是一名专业的高级社交媒体数据分析师。请对以下评论列表进行细粒度的情绪分类。
-你必须对每条评论进行情绪标签（positive, neutral, negative 之一）分类，并给出一个在 0.0 到 1.0 之间的小数作为得分（0.0代表极度消极/愤怒，0.5代表中立，1.0代表极度积极/支持）。
+你是一名专业的高级社交媒体与传播学数据分析师。请对以下评论列表进行精细的情感维度分类。
+你必须对每条评论进行情绪维度分类，必须是以下七类之一（选择最贴切的一项作为情绪标签）：
+1. "喜悦" (高兴、赞赏、支持、幽默、热烈期盼等积极向上的态度)
+2. "悲伤" (遗憾、伤心、失望、同情、无奈等消极倾向的态度)
+3. "愤怒" (生气、谴责、怒骂、剧烈抗议等极其激烈的敌对态度)
+4. "恐惧" (担忧、害怕、恐慌、顾虑、忧心忡忡等缺乏安全感的态度)
+5. "厌恶" (反感、恶心、鄙视、嫌弃、唾弃、抵制等拒绝认同的态度)
+6. "惊讶" (吃惊、意外、出乎意料、难以置信等被震惊的态度)
+7. "中立" (平静、客观叙事、无明显情绪波动的客观事实陈述)
+
+另外，请给出一个在 0.0 到 1.0 之间的小数作为情绪极性得分（0.0代表极度消极，0.5代表中立，1.0代表极度积极）。
 
 待分类评论列表:
 ```json
@@ -317,7 +368,7 @@ def batch_analyze_sentiment_with_gemini(comments: List[str], api_key: str) -> Li
 
 请严格返回符合以下 JSON 格式的数组，不要包含任何额外的 markdown 格式或多余的文字，只需返回纯 JSON：
 [
-  {{"id": 0, "sentiment": "positive", "score": 0.85}},
+  {{"id": 0, "sentiment": "喜悦", "score": 0.85}},
   ...
 ]
 """
@@ -861,9 +912,16 @@ def render_dashboard(df: pd.DataFrame):
             hole=0.55,
             color="sentiment",
             color_discrete_map={
-                "positive": "#10b981", # Emerald
-                "neutral": "#64748b",  # Slate
-                "negative": "#ef4444", # Red
+                "喜悦": "#10b981", # Emerald
+                "悲伤": "#3b82f6", # Blue
+                "愤怒": "#ef4444", # Red
+                "恐惧": "#8b5cf6", # Purple
+                "厌恶": "#f59e0b", # Amber
+                "惊讶": "#ec4899", # Pink
+                "中立": "#64748b", # Slate
+                "positive": "#10b981",
+                "neutral": "#64748b",
+                "negative": "#ef4444",
             },
         )
         apply_plotly_theme(fig_pie)
@@ -919,6 +977,13 @@ def plot_competitive_keywords(df: pd.DataFrame):
             barmode="group",
             title="竞品核心情感分布占比",
             color_discrete_map={
+                "喜悦": "#10b981", # Emerald
+                "悲伤": "#3b82f6", # Blue
+                "愤怒": "#ef4444", # Red
+                "恐惧": "#8b5cf6", # Purple
+                "厌恶": "#f59e0b", # Amber
+                "惊讶": "#ec4899", # Pink
+                "中立": "#64748b", # Slate
                 "positive": "#10b981",
                 "neutral": "#64748b",
                 "negative": "#ef4444",
@@ -985,6 +1050,13 @@ def plot_engagement_correlation(df: pd.DataFrame):
             hover_data=["author", "comment_text"],
             title="评论字符字数 vs 获得点赞数（已剔除极端尖峰值）",
             color_discrete_map={
+                "喜悦": "#10b981", # Emerald
+                "悲伤": "#3b82f6", # Blue
+                "愤怒": "#ef4444", # Red
+                "恐惧": "#8b5cf6", # Purple
+                "厌恶": "#f59e0b", # Amber
+                "惊讶": "#ec4899", # Pink
+                "中立": "#64748b", # Slate
                 "positive": "#10b981",
                 "neutral": "#64748b",
                 "negative": "#ef4444",
@@ -1092,7 +1164,157 @@ def plot_rolling_sentiment(df: pd.DataFrame):
         elif delta < -0.05:
             st.markdown("📉 **舆情态势研判：负向恶化！** 近期情绪表现出明显的下滑趋势。网民负向情绪在淤积且无好转迹象，可能存在第二波舆情次生灾害风险，需紧急干预！")
         else:
-            st.markdown("📊 **舆情态势研判：震荡僵持。** 滑动情感得分平稳，代表网民态度对立中和，舆论热点正处于稳步消耗阶段。")
+            st.markdown("📊 **舆情态势研研：震荡僵持。** 滑动情感得分平稳，代表网民态度对立中和，舆论热点正处于稳步消耗阶段。")
+
+
+def plot_semantic_clustering(df: pd.DataFrame):
+    """【学术级机器学习新增功能】使用 TF-IDF + K-Means + PCA 进行评论的主题聚类与降维可视化"""
+    st.markdown('<div class="section-title">🔮 评论语义聚类与学术话题阵营提炼</div>', unsafe_allow_html=True)
+    
+    # 提取评论文本并去重、清理空值
+    comments = df["comment_text"].dropna().astype(str).tolist()
+    if len(comments) < 15:
+        st.info("💡 聚类分析激活条件：当前抓取的评论样本过少（少于 15 条），建议在侧边栏增大采样深度后再体验机器学习聚类功能。")
+        return
+        
+    st.markdown(
+        """
+        利用机器学习非监督算法将网民评论转化为高维 TF-IDF 语义向量，通过 **K-Means** 聚类划分为不同的“话题阵营”，最后使用 **主成分分析 (PCA)** 将高维空间降维投影至二维，实现公众讨论焦点的科学聚类分布透视。
+        """
+    )
+    
+    # 侧边栏/小面板配置聚类数 K
+    n_clusters = st.slider("选择话题聚类簇数 (K)", min_value=2, max_value=6, value=4, help="K 代表网民发言主要集中的对立或发散的话题阵营数")
+    
+    with st.spinner("正在进行 TF-IDF 向量化与 K-Means 聚类运算..."):
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.cluster import KMeans
+            from sklearn.decomposition import PCA
+            import numpy as np
+            import jieba
+            
+            # 对中文评论进行分词，以便 TF-IDF 向量化
+            tokenized_comments = []
+            for comment in comments:
+                if contains_chinese(comment):
+                    # 中文分词
+                    words = jieba.cut(comment)
+                    # 过滤停用词/短词
+                    words_filtered = [w.strip() for w in words if len(w.strip()) > 1]
+                    tokenized_comments.append(" ".join(words_filtered))
+                else:
+                    tokenized_comments.append(comment.lower())
+                    
+            # 建立 TF-IDF 矩阵
+            vectorizer = TfidfVectorizer(max_features=500, stop_words='english')
+            tfidf_matrix = vectorizer.fit_transform(tokenized_comments)
+            
+            # K-Means 聚类
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
+            cluster_labels = kmeans.fit_predict(tfidf_matrix)
+            
+            # PCA 降维至 2D
+            pca = PCA(n_components=2, random_state=42)
+            coords = pca.fit_transform(tfidf_matrix.toarray())
+            
+            # 构造可视化 DataFrame
+            plot_data = df.copy()
+            plot_data["x"] = coords[:, 0]
+            plot_data["y"] = coords[:, 1]
+            plot_data["cluster"] = [f"Topic {label + 1}" for label in cluster_labels]
+            # 为了防止 hover 时内容过长影响显示，截取前 80 个字符
+            plot_data["comment_preview"] = plot_data["comment_text"].apply(lambda t: t[:80] + "..." if len(t) > 80 else t)
+            
+            # 获取每个簇的 top keywords
+            terms = vectorizer.get_feature_names_out()
+            order_centroids = kmeans.cluster_centers_.argsort()[:, ::-1]
+            
+            cluster_keywords = {}
+            for i in range(n_clusters):
+                top_terms = [terms[ind] for ind in order_centroids[i, :5]]
+                cluster_keywords[f"Topic {i + 1}"] = top_terms
+                
+            # 渲染图表
+            col1, col2 = st.columns([2.5, 1])
+            
+            with col1:
+                fig = px.scatter(
+                    plot_data,
+                    x="x",
+                    y="y",
+                    color="cluster",
+                    size=plot_data["like_count"].apply(lambda v: max(v, 4)), # 点的大小取决于点赞数
+                    hover_data=["author", "like_count", "comment_preview", "sentiment"],
+                    title=f"评论语义高维映射与 PCA 2D 投影图 (聚类簇 K={n_clusters})",
+                    color_discrete_sequence=px.colors.qualitative.Pastel
+                )
+                fig.update_traces(marker=dict(opacity=0.75, line=dict(width=1, color="rgba(255,255,255,0.15)")))
+                apply_plotly_theme(fig)
+                st.plotly_chart(fig, use_container_width=True)
+                
+            with col2:
+                st.markdown("##### 🔑 各话题阵营高频语义特征")
+                
+                # 为每个聚类阵营渲染一个高雅的 Glassmorphic 话题特征卡片
+                cluster_colors = px.colors.qualitative.Pastel
+                for i in range(n_clusters):
+                    topic_name = f"Topic {i + 1}"
+                    kw_list = cluster_keywords[topic_name]
+                    kw_tags_html = " ".join([f"<span style='background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 2px 8px; margin-right: 6px; display: inline-block; margin-bottom: 6px; font-size:12px; color:#cbd5e1;'>🏷️ {kw}</span>" for kw in kw_list])
+                    
+                    # 计算该 Topic 下评论的平均情感得分和占比
+                    topic_subset = plot_data[plot_data["cluster"] == topic_name]
+                    avg_score = topic_subset["sentiment_score"].mean()
+                    total_pct = len(topic_subset) / len(plot_data) * 100
+                    
+                    st.markdown(
+                        f"""
+                        <div class="metric-card" style="padding: 16px; border-left: 4px solid {cluster_colors[i % len(cluster_colors)]}; margin-bottom: 12px;">
+                            <div class="metric-title" style="font-size:12px; color:#cbd5e1; font-weight:700;">🗣️ 话题阵营 {i + 1} ({total_pct:.1f}%)</div>
+                            <div style="margin-top: 8px; margin-bottom: 10px;">
+                                {kw_tags_html}
+                            </div>
+                            <div style="font-size: 11px; color:#94a3b8;">
+                                情感倾向度均值：<b style="color: { '#10b981' if avg_score >= 0.55 else '#ef4444' if avg_score <= 0.45 else '#64748b' }">{avg_score:.2f}</b> (0代表极端消极, 1代表极端积极)
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    
+            st.divider()
+            
+            # 展示各 Topic 的典型评论
+            st.markdown("##### 📖 各话题阵营代表性网民发言追踪")
+            topic_tabs = st.tabs([f"Topic {i+1} 语料样本" for i in range(n_clusters)])
+            for i, t_tab in enumerate(topic_tabs):
+                with t_tab:
+                    topic_name = f"Topic {i + 1}"
+                    subset = plot_data[plot_data["cluster"] == topic_name].sort_values(by="like_count", ascending=False).head(4)
+                    
+                    if subset.empty:
+                        st.info("该话题阵营下暂无发言数据")
+                    else:
+                        c_left, c_right = st.columns(2)
+                        for idx_col, (_, row) in enumerate(subset.iterrows()):
+                            col_to_use = c_left if idx_col % 2 == 0 else c_right
+                            sentiment_border = "quote-card-pos" if row["sentiment"] == "positive" else "quote-card-neg" if row["sentiment"] == "negative" else ""
+                            with col_to_use:
+                                st.markdown(
+                                    f"""
+                                    <div class="quote-card {sentiment_border}">
+                                        <div class="quote-author">👤 {row['author']} <span style='float:right;'>👍 {row['like_count']} Likes</span></div>
+                                        <div class="quote-text">“{row['comment_text']}”</div>
+                                        <div class="quote-meta">情感得分: {row['sentiment_score']:.2f} | 话题划分: {topic_name}</div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                                
+        except Exception as e:
+            st.error(f"聚类分析过程中发生异常：{e}")
+            st.info("提示：这通常是由于评论中没有足够的词汇建立特征矩阵导致，请尝试增大采样评论数量。")
 
 
 # ==========================================
@@ -1106,7 +1328,7 @@ def render_extreme_quotes(df: pd.DataFrame):
     c1, c2 = st.columns(2)
     
     # 提取高赞的正面评论
-    pos_df = df[df["sentiment"] == "positive"].sort_values(by="like_count", ascending=False).head(5)
+    pos_df = df[df["sentiment"].isin(["喜悦", "惊讶", "positive"])].sort_values(by="like_count", ascending=False).head(5)
     with c1:
         st.markdown("##### 🟢 典型正面回响 (Top 5 热门正面意见)")
         if pos_df.empty:
@@ -1118,14 +1340,14 @@ def render_extreme_quotes(df: pd.DataFrame):
                     <div class="quote-card quote-card-pos">
                         <div class="quote-author">👤 {row['author']} <span style='float:right; color:#10b981;'>👍 {row['like_count']} Likes</span></div>
                         <div class="quote-text">“{row['comment_text']}”</div>
-                        <div class="quote-meta">来自视频：{row['video_title'][:40]}... | 情绪评分: {row['sentiment_score']:.2f}</div>
+                        <div class="quote-meta">来自视频：{row['video_title'][:40]}... | 情绪分类: {row['sentiment']} | 评分: {row['sentiment_score']:.2f}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
                 
     # 提取高赞的负面评论
-    neg_df = df[df["sentiment"] == "negative"].sort_values(by="like_count", ascending=False).head(5)
+    neg_df = df[df["sentiment"].isin(["愤怒", "悲伤", "恐惧", "厌恶", "negative"])].sort_values(by="like_count", ascending=False).head(5)
     with c2:
         st.markdown("##### 🔴 关键负面投诉 (Top 5 热门警示言论)")
         if neg_df.empty:
@@ -1137,7 +1359,7 @@ def render_extreme_quotes(df: pd.DataFrame):
                     <div class="quote-card quote-card-neg">
                         <div class="quote-author">👤 {row['author']} <span style='float:right; color:#ef4444;'>👍 {row['like_count']} Likes</span></div>
                         <div class="quote-text">“{row['comment_text']}”</div>
-                        <div class="quote-meta">来自视频：{row['video_title'][:40]}... | 情绪评分: {row['sentiment_score']:.2f}</div>
+                        <div class="quote-meta">来自视频：{row['video_title'][:40]}... | 情绪分类: {row['sentiment']} | 评分: {row['sentiment_score']:.2f}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -1198,8 +1420,8 @@ def calculate_polarization_index(df: pd.DataFrame) -> Tuple[float, str]:
     if total == 0:
         return 0.0, "无数据"
         
-    p_pos = (df["sentiment"] == "positive").mean()
-    p_neg = (df["sentiment"] == "negative").mean()
+    p_pos = df["sentiment"].isin(["喜悦", "惊讶", "positive"]).mean()
+    p_neg = df["sentiment"].isin(["愤怒", "悲伤", "恐惧", "厌恶", "negative"]).mean()
     
     polarization = 4 * p_pos * p_neg
     
@@ -1237,7 +1459,7 @@ def render_metrics(df: pd.DataFrame):
             f"""
             <div class="metric-card">
                 <div class="metric-title">📥 语料样本总量 (N)</div>
-                <div class="metric-value">{{total:,}}</div>
+                <div class="metric-value">{total:,}</div>
                 <div class="metric-subtitle">样本抓取层深度：Top-level comments</div>
             </div>
             """,
@@ -1248,7 +1470,7 @@ def render_metrics(df: pd.DataFrame):
             f"""
             <div class="metric-card">
                 <div class="metric-title">🔬 态度主观性指数</div>
-                <div class="metric-value" style="background: linear-gradient(135deg, #34d399 0%, #059669 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{{sub_rate:.1f}}%</div>
+                <div class="metric-value" style="background: linear-gradient(135deg, #34d399 0%, #059669 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{sub_rate:.1f}%</div>
                 <div class="metric-subtitle">非中立主观语义倾向的发言占比</div>
             </div>
             """,
@@ -1405,10 +1627,11 @@ def main():
         render_metrics(df)
         st.divider()
 
-        # Five Tabs Layout (Academic Redesign)
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        # Six Tabs Layout (Academic Redesign)
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
             "📊 舆情定量分析大屏 (Quantitative Metrics)", 
             "🧪 实证科研高级探针 (Empirical Analytics)",
+            "🔮 学术语义聚类分析 (Semantic Clustering)",
             "📚 SCCT 学术编码研究 (Theoretical Coding)", 
             "🔍 词云与情感语义分布 (Semantic Mining)", 
             "💾 研究数据审计与导出 (Corpus Auditor)"
@@ -1434,10 +1657,13 @@ def main():
             plot_engagement_correlation(df)
 
         with tab3:
+            plot_semantic_clustering(df)
+
+        with tab4:
             st.markdown('<div class="section-title">📚 SCCT 危机情境定量内容分析中枢 (基于经典情境危机传播理论)</div>', unsafe_allow_html=True)
             
             # 过滤出所有消极评论
-            neg_comments = df[df["sentiment"] == "negative"].sort_values(by="like_count", ascending=False)["comment_text"].tolist()
+            neg_comments = df[df["sentiment"].isin(["愤怒", "悲伤", "恐惧", "厌恶", "negative"])].sort_values(by="like_count", ascending=False)["comment_text"].tolist()
             
             if not enable_scct:
                 st.info("💡 学术研究模型未启用。请在侧边栏勾选“开启 SCCT 学术编码模型”并配置 API Key 激活。")
