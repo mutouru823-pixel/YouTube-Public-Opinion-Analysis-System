@@ -203,6 +203,8 @@ def plot_temporal_heatmap(df: pd.DataFrame) -> None:
 
     heatmap_data = df_copy.groupby(["day_of_week", "hour"]).size().unstack(fill_value=0)
     heatmap_data = heatmap_data.reindex(weekday_order, fill_value=0)
+    # 确保列覆盖 0-23 全部 24 小时,与 px.imshow 的 x=list(range(24)) 对齐
+    heatmap_data = heatmap_data.reindex(columns=range(24), fill_value=0)
     heatmap_data.index = [weekday_cn[d] for d in heatmap_data.index]
 
     fig = px.imshow(
