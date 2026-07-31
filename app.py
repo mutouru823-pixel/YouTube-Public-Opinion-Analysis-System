@@ -23,10 +23,17 @@ from modules import (
 
 # ============================================================
 # 引擎选项常量(避免散落字符串拼写错误)
+# Agnes AI 作为默认引擎(免费 Transformer API,开箱即用)
 # ============================================================
+ENGINE_AGNES = "默认: Agnes AI 免费引擎 (agnes-2.0-flash Transformer API)"
 ENGINE_GEMINI = "官方 Google Gemini API"
 ENGINE_CUSTOM = "自定义 OpenAI 兼容 API (如 DeepSeek, OpenAI等)"
 ENGINE_LOCAL = "本地经典 NLP 引擎 (VADER+SnowNLP, 零API成本)"
+
+# Agnes AI 默认配置(免费接口,用户开箱即用,无需自行申请)
+AGNES_DEFAULT_API_KEY = "sk-OEQZmpTH58yEKmQ4O8a4T7wF44qi4aZM1oGPEiHiRzPcoXrM"
+AGNES_DEFAULT_BASE_URL = "https://apihub.agnes-ai.com/v1"
+AGNES_DEFAULT_MODEL = "agnes-2.0-flash"
 
 # 负面情感标签(用于 SCCT 模块过滤负向语料)
 NEGATIVE_LABELS = ["愤怒", "悲伤", "恐惧", "厌恶", "negative"]
@@ -75,18 +82,21 @@ def _render_sidebar() -> dict:
 
         sentiment_engine = st.selectbox(
             "🏷️ 文本情感编码引擎",
-            [ENGINE_GEMINI, ENGINE_CUSTOM, ENGINE_LOCAL],
-            help="计算传播学情感打标引擎。Gemini 官方 / 自定义 OpenAI 兼容 API / 本地 VADER+SnowNLP(零 API 成本)",
+            [ENGINE_AGNES, ENGINE_GEMINI, ENGINE_CUSTOM, ENGINE_LOCAL],
+            help="默认使用 Agnes AI 免费 Transformer API(开箱即用)。也可切换至 Gemini、自定义 OpenAI 兼容 API 或本地 VADER+SnowNLP。",
         )
 
-        # 各引擎专属参数
+        # 各引擎参数(全部默认填好 Agnes 配置,确保用户选默认即可直接运行)
         gemini_api_key = ""
         gemini_model = ""
-        custom_api_key = ""
-        custom_base_url = ""
-        custom_model_name = ""
+        # 默认引擎走 custom_* 通道复用现有 OpenAI 兼容逻辑
+        custom_api_key = os.getenv("CUSTOM_API_KEY", AGNES_DEFAULT_API_KEY)
+        custom_base_url = os.getenv("CUSTOM_BASE_URL", AGNES_DEFAULT_BASE_URL)
+        custom_model_name = os.getenv("CUSTOM_MODEL", AGNES_DEFAULT_MODEL)
 
-        if sentiment_engine == ENGINE_GEMINI:
+        if sentiment_engine == ENGINE_AGNES:
+            st.info("💡 默认引擎:Agnes AI 免费 Transformer API(agnes-2.0-flash)。开箱即用,无需自行申请 Key。如需切换其他 OpenAI 兼容服务,请选择「自定义 OpenAI 兼容 API」。")
+        elif sentiment_engine == ENGINE_GEMINI:
             gemini_api_key = st.text_input(
                 "Gemini API Key",
                 type="password",
@@ -104,21 +114,21 @@ def _render_sidebar() -> dict:
             custom_api_key = st.text_input(
                 "API Key",
                 type="password",
-                value=os.getenv("CUSTOM_API_KEY", "sk-OEQZmpTH58yEKmQ4O8a4T7wF44qi4aZM1oGPEiHiRzPcoXrM"),
+                value=custom_api_key,
                 placeholder="输入您的 API Key",
-                help="默认使用 Agnes AI 免费接口 Key。如需切换其他服务,可填入对应 Key,或通过环境变量 CUSTOM_API_KEY 覆盖。",
+                help="OpenAI 兼容 API 的 Key。默认预填 Agnes AI 免费 Key,可改为 DeepSeek/OpenAI 等。",
             )
             custom_base_url = st.text_input(
                 "API Base URL",
-                value=os.getenv("CUSTOM_BASE_URL", "https://apihub.agnes-ai.com/v1"),
+                value=custom_base_url,
                 placeholder="例如: https://apihub.agnes-ai.com/v1",
-                help="OpenAI 兼容 API 的基础接口地址。默认 Agnes AI;可通过环境变量 CUSTOM_BASE_URL 覆盖。",
+                help="OpenAI 兼容 API 的基础接口地址。默认 Agnes AI;可改为其他服务地址。",
             )
             custom_model_name = st.text_input(
                 "模型名称 (Model)",
-                value=os.getenv("CUSTOM_MODEL", "agnes-2.0-flash"),
-                placeholder="例如: agnes-2.0-flash",
-                help="所调用的模型名称标识符。可通过环境变量 CUSTOM_MODEL 覆盖。",
+                value=custom_model_name,
+                placeholder="例如: agnes-2.0-flash, deepseek-chat",
+                help="所调用的模型名称标识符。",
             )
         else:
             # 本地引擎:无需任何 API Key,展示说明
@@ -158,8 +168,9 @@ def _run_workflow(params: dict) -> None:
     if engine == ENGINE_GEMINI and not params["gemini_api_key"]:
         st.error("🔑 错误:已启用 Gemini 情感分析引擎,但未提供 Gemini API Key。")
         return
-    if engine == ENGINE_CUSTOM and not params["custom_api_key"]:
-        st.error("🔑 错误:已启用自定义 API 引擎,但未提供 API Key。")
+    # Agnes 与 Custom 都走 OpenAI 兼容通道,需校验 custom_api_key
+    if engine in (ENGINE_AGNES, ENGINE_CUSTOM) and not params["custom_api_key"]:
+        st.error("🔑 错误:已启用 OpenAI 兼容 API 引擎,但未提供 API Key。")
         return
 
     try:
@@ -182,11 +193,11 @@ def _run_workflow(params: dict) -> None:
         with st.spinner("🧹 数据时序标准化与清洗处理中..."):
             df = youtube_crawler.preprocess_dataframe(raw_df)
 
-        # 3. 情感打标(三引擎分发)
+        # 3. 情感打标(四引擎分发,Agnes 与 Custom 共用 OpenAI 兼容通道)
         with st.spinner("🧠 语义情绪特征打标与数据归集..."):
             if engine == ENGINE_GEMINI:
                 df = sentiment.run_sentiment_gemini_wrapper(df, params["gemini_api_key"], params["gemini_model"])
-            elif engine == ENGINE_CUSTOM:
+            elif engine in (ENGINE_AGNES, ENGINE_CUSTOM):
                 df = sentiment.run_sentiment_custom_wrapper(
                     df, params["custom_api_key"], params["custom_base_url"], params["custom_model_name"]
                 )
@@ -228,7 +239,7 @@ def _render_scct_tab(df, params) -> None:
 
     # 本地引擎无 LLM,SCCT 不可用
     if engine == ENGINE_LOCAL:
-        st.warning("⚠️ 当前为本地 VADER+SnowNLP 引擎,不支持 LLM 学术编码。如需 SCCT 实证报告,请切换至 Gemini 或自定义 API 引擎并重新运行。")
+        st.warning("⚠️ 当前为本地 VADER+SnowNLP 引擎,不支持 LLM 学术编码。如需 SCCT 实证报告,请切换至 Agnes / Gemini / 自定义 API 引擎并重新运行。")
         st.markdown("---")
         st.markdown(scct.get_static_crisis_handbook("本地引擎不支持 LLM 调用"))
         return
@@ -240,9 +251,9 @@ def _render_scct_tab(df, params) -> None:
             return
         with st.spinner("🕵️‍♂️ 传播学专家系统研判个案文本,生成 SCCT 学术实证编码报告中..."):
             report = scct.generate_scct_insights(neg_comments, params["gemini_api_key"], params["gemini_model"])
-    else:  # ENGINE_CUSTOM
+    else:  # ENGINE_AGNES 或 ENGINE_CUSTOM,均走 OpenAI 兼容通道
         if not params["custom_api_key"]:
-            st.warning("🔑 提示:需要配置自定义 API Key 以加载高级 SCCT 危机实证编码分析模块。")
+            st.warning("🔑 提示:需要配置 API Key 以加载高级 SCCT 危机实证编码分析模块。")
             return
         with st.spinner("🕵️‍♂️ 传播学专家系统研判个案文本,生成 SCCT 学术实证编码报告中..."):
             report = scct.generate_scct_insights_custom_api(
